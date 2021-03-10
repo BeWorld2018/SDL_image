@@ -300,10 +300,14 @@ SDL_Surface *IMG_LoadTGA_RW(SDL_RWops *src)
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
         if (bpp == 2) {
             /* swap byte order */
+#if defined(__MORPHOS__)
+			SDL_CopyAndSwap16((APTR)dst, (APTR)dst, w);
+#else
             int x;
             Uint16 *p = (Uint16 *)dst;
             for(x = 0; x < w; x++)
             p[x] = SDL_Swap16(p[x]);
+#endif
         }
 #endif
         dst += lstep;

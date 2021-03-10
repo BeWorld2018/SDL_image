@@ -30,12 +30,10 @@
 
 #ifdef LOAD_JPG
 
-#ifdef __MORPHOS__
-//#define USE_JPEGLIB
-// TODO : force use jpeglib in os-include
-#include <gg:os-include/jpeglib.h>
-#else
 #define USE_JPEGLIB
+#ifdef __MORPHOS_SHAREDLIBS
+#include <proto/jfif.h>
+#else
 #include <jpeglib.h>
 #endif
 

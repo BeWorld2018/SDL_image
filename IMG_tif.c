@@ -27,7 +27,11 @@
 
 #ifdef LOAD_TIF
 
+#ifdef __MORPHOS_SHAREDLIBS
+#include <proto/tiff.h>
+#else
 #include <tiffio.h>
+#endif
 
 static struct {
     int loaded;

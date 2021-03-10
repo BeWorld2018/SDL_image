@@ -94,6 +94,9 @@ $(LIBRARY): $(TARGET) $(COREOBJECTS)
 showimage: sdklibs showimage.c
 	$(CC) -noixemul -O2 -Wall showimage.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
 
+showanim: sdklibs showanim.c
+	$(CC) -noixemul -O2 -Wall showanim.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s
 	rm -rf morphos/devenv/lib morphos/devenv/*.o morphos/devenv/*.s
