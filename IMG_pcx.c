@@ -117,7 +117,7 @@ SDL_Surface *IMG_LoadPCX_RW(SDL_RWops *src)
     pcxh.Ymax = SDL_SwapLE16(pcxh.Ymax);
     pcxh.BytesPerLine = SDL_SwapLE16(pcxh.BytesPerLine);
 
-#if 0
+#ifndef __MORPHOS__
     printf("Manufacturer = %d\n", pcxh.Manufacturer);
     printf("Version = %d\n", pcxh.Version);
     printf("Encoding = %d\n", pcxh.Encoding);

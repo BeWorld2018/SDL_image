@@ -30,14 +30,22 @@
 
 #ifdef LOAD_JPG
 
+#ifdef __MORPHOS__
+//#define USE_JPEGLIB
+// TODO : force use jpeglib in os-include
+#include <gg:os-include/jpeglib.h>
+#else
 #define USE_JPEGLIB
-
 #include <jpeglib.h>
+#endif
 
 #ifdef JPEG_TRUE  /* MinGW version of jpeg-8.x renamed TRUE to JPEG_TRUE etc. */
     typedef JPEG_boolean boolean;
     #define TRUE JPEG_TRUE
     #define FALSE JPEG_FALSE
+#elif defined(__MORPHOS__) && !defined(TRUE)
+    #define TRUE 1
+    #define FALSE 0
 #endif
 
 /* Define this for fast loading and not as good image quality */
@@ -67,13 +75,68 @@ static struct {
     struct jpeg_error_mgr * (*jpeg_std_error) (struct jpeg_error_mgr * err);
 } lib;
 
+#if defined(__MORPHOS__)
+
+
+const char *const my_std_message_table[] = {
+	NULL
+};
+
+static void my_reset_error_mgr(j_common_ptr cinfo)
+{
+	cinfo->err->num_warnings=0;
+	cinfo->err->msg_code=0;
+}
+
+static void format_no_message(j_common_ptr cinfo, char *buffer)
+{
+	/* do nothing */
+}
+
+static void emit_no_message(j_common_ptr cinfo, int msg_level)
+{
+	/* do nothing */
+}
+
+static void my_error_exit(j_common_ptr cinfo);
+static void output_no_message(j_common_ptr cinfo);
+
+static struct jpeg_error_mgr *my_std_error(struct jpeg_error_mgr *err)
+{
+	err->error_exit = my_error_exit;
+	err->emit_message = emit_no_message;
+	err->output_message = output_no_message;
+	err->format_message = format_no_message;
+	err->reset_error_mgr = my_reset_error_mgr;
+
+	err->trace_level = 0;
+	err->num_warnings = 0;
+	err->msg_code = 0;
+
+	err->jpeg_message_table = my_std_message_table;
+	err->last_jpeg_message = 0;
+
+	err->addon_message_table = NULL;
+	err->first_addon_message = 0;
+	err->last_addon_message = 0;
+
+	return err;
+}
+
+#endif
+
 #ifdef LOAD_JPG_DYNAMIC
 #define FUNCTION_LOADER(FUNC, SIG) \
     lib.FUNC = (SIG) SDL_LoadFunction(lib.handle, #FUNC); \
     if (lib.FUNC == NULL) { SDL_UnloadObject(lib.handle); return -1; }
 #else
+#ifdef __MORPHOS_SHAREDLIBS
+#define FUNCTION_LOADER(FUNC, SIG, REP) \
+    lib.FUNC = REP;
+#else
 #define FUNCTION_LOADER(FUNC, SIG) \
     lib.FUNC = FUNC;
+#endif
 #endif
 
 int IMG_InitJPG()
@@ -85,6 +148,24 @@ int IMG_InitJPG()
             return -1;
         }
 #endif
+#ifdef __MORPHOS_SHAREDLIBS
+		FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 232))
+        FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize), *(void**)((long)(JFIFBase) - 34))
+        FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 46))
+        FUNCTION_LOADER(jpeg_finish_decompress, boolean (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 184))
+        FUNCTION_LOADER(jpeg_read_header, int (*) (j_decompress_ptr cinfo, boolean require_image), *(void**)((long)(JFIFBase) - 166))
+        FUNCTION_LOADER(jpeg_read_scanlines, JDIMENSION (*) (j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines), *(void**)((long)(JFIFBase) - 178))
+        FUNCTION_LOADER(jpeg_resync_to_restart, boolean (*) (j_decompress_ptr cinfo, int desired), *(void**)((long)(JFIFBase) - 292))
+        FUNCTION_LOADER(jpeg_start_decompress, boolean (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 172))
+        FUNCTION_LOADER(jpeg_CreateCompress, void (*) (j_compress_ptr cinfo, int version, size_t structsize), *(void**)((long)(JFIFBase) - 34))
+        FUNCTION_LOADER(jpeg_start_compress, void (*) (j_compress_ptr cinfo, boolean write_all_tables), *(void**)((long)(JFIFBase) - 118) )
+        FUNCTION_LOADER(jpeg_set_quality, void (*) (j_compress_ptr cinfo, int quality, boolean force_baseline), *(void**)((long)(JFIFBase) - 70) )
+        FUNCTION_LOADER(jpeg_set_defaults, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 52))
+        FUNCTION_LOADER(jpeg_write_scanlines, JDIMENSION (*) (j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines), *(void**)((long)(JFIFBase) - 124))
+        FUNCTION_LOADER(jpeg_finish_compress, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 130))
+        FUNCTION_LOADER(jpeg_destroy_compress, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 40))
+        FUNCTION_LOADER(jpeg_std_error, struct jpeg_error_mgr * (*) (struct jpeg_error_mgr * err), my_std_error)
+		#else
         FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo))
         FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize))
         FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo))
@@ -101,6 +182,7 @@ int IMG_InitJPG()
         FUNCTION_LOADER(jpeg_finish_compress, void (*) (j_compress_ptr cinfo))
         FUNCTION_LOADER(jpeg_destroy_compress, void (*) (j_compress_ptr cinfo))
         FUNCTION_LOADER(jpeg_std_error, struct jpeg_error_mgr * (*) (struct jpeg_error_mgr * err))
+#endif
     }
     ++lib.loaded;
 
