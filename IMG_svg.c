@@ -127,10 +127,12 @@ SDL_Surface *IMG_LoadSVG_RW(SDL_RWops *src)
                                    (int)(image->width * scale),
                                    (int)(image->height * scale),
                                    32,
-                                   0x000000FF,
-                                   0x0000FF00,
-                                   0x00FF0000,
-                                   0xFF000000);
+	#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+						   0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
+	#else
+                           0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+	#endif
+
     if ( !surface ) {
         nsvgDeleteRasterizer( rasterizer );
         nsvgDelete( image );
