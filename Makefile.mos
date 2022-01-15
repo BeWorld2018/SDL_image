@@ -1,6 +1,6 @@
 # Makefile to build the SDL2_image library
 
-CDEFS   = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE -DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_JPG -DLOAD_PNG -DLOAD_TIF  -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP 
+CDEFS   = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE -DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_JPG -DLOAD_PNG -DLOAD_TIF  -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI
 CC      = ppc-morphos-gcc-10 -noixemul
 
 LIBS_EXT = -L/usr/local/lib -lwebp 
@@ -25,22 +25,23 @@ TARGET  = libSDL2_image.a
 LIBRARY = sdl2_image.library
 
 SOURCES = \
-	IMG.c			\
-	IMG_bmp.c		\
+	IMG.c				\
+	IMG_bmp.c	\
 	IMG_gif.c		\
 	IMG_jpg.c		\
 	IMG_lbm.c		\
 	IMG_pcx.c		\
 	IMG_png.c		\
-	IMG_pnm.c		\
+	IMG_pnm.c	\
+	IMG_qoi.c 		\
 	IMG_svg.c		\
 	IMG_tga.c		\
-	IMG_tif.c		\
+	IMG_tif.c			\
 	IMG_xcf.c		\
-	IMG_xpm.c		\
+	IMG_xpm.c	\
 	IMG_xv.c		\
-	IMG_webp.c		\
-	IMG_WIC.c \
+	IMG_webp.c	\
+	IMG_WIC.c 	\
 	IMG_xxx.c
 		
 CORESOURCES = MorphOS/*.c

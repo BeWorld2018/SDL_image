@@ -397,4 +397,52 @@
 		(((IMG_Animation *(*)(SDL_RWops *))*(void**)(__base - 298))(__t__p0));\
 	})
 
+#define IMG_isICO(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(SDL_RWops *))*(void**)(__base - 304))(__t__p0));\
+	})
+
+#define IMG_LoadICO_RW(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 310))(__t__p0));\
+	})
+
+#define IMG_isCUR(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(SDL_RWops *))*(void**)(__base - 316))(__t__p0));\
+	})
+
+#define IMG_LoadCUR_RW(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 322))(__t__p0));\
+	})
+
+#define IMG_isQOI(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(SDL_RWops *))*(void**)(__base - 328))(__t__p0));\
+	})
+
+#define IMG_LoadQOI_RW(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 334))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_IMAGE_H */

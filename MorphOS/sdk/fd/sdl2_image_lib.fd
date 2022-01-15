@@ -53,4 +53,11 @@ IMG_LoadAnimation_RW(src,freesrc)(sysv,r12base)
 IMG_LoadAnimationTyped_RW(src,freesrc,type)(sysv,r12base)
 IMG_FreeAnimation(anim)(sysv,r12base)
 IMG_LoadGIFAnimation_RW(src)(sysv,r12base)
+IMG_isICO(src)(sysv,r12base)
+IMG_LoadICO_RW(src)(sysv,r12base)
+IMG_isCUR(src)(sysv,r12base)
+IMG_LoadCUR_RW(src)(sysv,r12base)
+IMG_isQOI(src)(sysv,r12base)
+IMG_LoadQOI_RW(src)(sysv,r12base)
+
 ##end

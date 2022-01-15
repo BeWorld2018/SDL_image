@@ -84,6 +84,12 @@ void IMG_FreeAnimation(IMG_Animation *anim);
 /* Individual loading functions */
 IMG_Animation * IMG_LoadGIFAnimation_RW(SDL_RWops *src);
 
+int IMG_isICO(SDL_RWops *src);
+SDL_Surface * IMG_LoadICO_RW(SDL_RWops *src);
+int IMG_isCUR(SDL_RWops *src);
+SDL_Surface * IMG_LoadCUR_RW(SDL_RWops *src);
+int IMG_isQOI(SDL_RWops *src);
+SDL_Surface * IMG_LoadQOI_RW(SDL_RWops *src);
 #ifdef __cplusplus
 }
 #endif
