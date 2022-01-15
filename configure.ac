@@ -27,18 +27,20 @@ AC_SUBST([MICRO_VERSION], MICRO_VERSION_MACRO)
 AC_SUBST([INTERFACE_AGE], INTERFACE_AGE_MACRO)
 AC_SUBST([BINARY_AGE], BINARY_AGE_MACRO)
 
-# libtool versioning
+dnl libtool versioning
 LT_INIT([win32-dll])
 
 LT_RELEASE=$MAJOR_VERSION.$MINOR_VERSION
 LT_CURRENT=`expr $MICRO_VERSION - $INTERFACE_AGE`
 LT_REVISION=$INTERFACE_AGE
 LT_AGE=`expr $BINARY_AGE - $INTERFACE_AGE`
+LT_EXTRA="" dnl for OS2 dll name
 
 AC_SUBST(LT_RELEASE)
 AC_SUBST(LT_CURRENT)
 AC_SUBST(LT_REVISION)
 AC_SUBST(LT_AGE)
+AC_SUBST(LT_EXTRA)
 
 dnl Detect the canonical build and host environments
 AC_CANONICAL_HOST
@@ -71,6 +73,8 @@ case "$host" in
             # Look for the location of the tools and install there
             if test "$BUILD_PREFIX" != ""; then
                 ac_default_prefix=$BUILD_PREFIX
+            elif test "$MINGW_PREFIX" != ""; then
+                ac_default_prefix=$MINGW_PREFIX
             fi
         fi
         if test x$WINDRES != x; then
@@ -89,11 +93,20 @@ case "$host" in
             CFLAGS="$CFLAGS -DSDL_IMAGE_USE_COMMON_BACKEND"
         fi
         ;;
+    *-*-os2*)
+        # disable static builds on os/2
+        enable_static=no
+        # -DBUILD_SDL is needed for DECLSPEC
+        CFLAGS="$CFLAGS -DBUILD_SDL"
+        # OS/2 does not support a DLL name longer than 8 characters.
+        LT_EXTRA="-os2dllname SDL2img"
+        ;;
 esac
 AM_CONDITIONAL(USE_IMAGEIO, test x$enable_imageio = xyes)
 AM_CONDITIONAL(USE_VERSION_RC, test x$use_version_rc = xtrue)
 
 dnl set this to use on systems that use lib64 instead of lib
+base_bindir=`echo \${bindir} | sed 's/.*\/\(.*\)/\1/; q'`
 base_libdir=`echo \${libdir} | sed 's/.*\/\(.*\)/\1/; q'`
 
 dnl Function to find a library in the compiler search path
@@ -105,7 +118,7 @@ find_lib()
     if test "$cross_compiling" = yes; then
         host_lib_path=""
     else
-        host_lib_path="/usr/$base_libdir /usr/local/$base_libdir"
+        host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
     for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
         lib=[`ls -- $path/$1 2>/dev/null | sed -e '/\.so\..*\./d' -e 's,.*/,,' | sort | tail -1`]
@@ -114,6 +127,34 @@ find_lib()
             return
         fi
     done
+}
+
+dnl See if GCC's -fvisibility=hidden is supported (gcc4 and later, usually).
+CheckVisibilityHidden()
+{
+    AC_MSG_CHECKING(for GCC -fvisibility=hidden option)
+    have_gcc_fvisibility=no
+    case "$host" in
+    *-*-cygwin* | *-*-mingw* | *-*-os2*)
+        AC_MSG_RESULT([ignored for $host_os])
+        return
+        ;;
+    esac
+
+    visibility_CFLAGS="-fvisibility=hidden"
+    save_CFLAGS="$CFLAGS"
+    CFLAGS="$save_CFLAGS $visibility_CFLAGS -Werror"
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+    #if !defined(__GNUC__) || __GNUC__ < 4
+    #error SDL only uses visibility attributes in GCC 4 or newer
+    #endif
+    ]],[])], [have_gcc_fvisibility=yes],[])
+    AC_MSG_RESULT($have_gcc_fvisibility)
+    CFLAGS="$save_CFLAGS"
+
+    if test x$have_gcc_fvisibility = xyes; then
+        CFLAGS="$CFLAGS $visibility_CFLAGS"
+    fi
 }
 
 dnl Check command-line options
@@ -155,10 +196,34 @@ AC_ARG_ENABLE([webpdec], [AS_HELP_STRING([--enable-webpdec], [support loading WE
  [], [enable_webpdec=no])
 AC_ARG_ENABLE([webp-shared], [AS_HELP_STRING([--enable-webp-shared], [dynamically load WEBP support [default=yes]])],
  [], [enable_webp_shared=yes])
+AC_ARG_ENABLE([qoi], [AS_HELP_STRING([--enable-qoi], [support loading QOI images [default=yes]])],
+ [], [enable_qoi=yes])
+
+dnl Check for SDL
+SDL_VERSION=2.0.8
+AC_SUBST(SDL_VERSION)
+AM_PATH_SDL2($SDL_VERSION,
+            :,
+            AC_MSG_ERROR([*** SDL version $SDL_VERSION not found!])
+)
+CFLAGS="$CFLAGS $SDL_CFLAGS"
+LIBS="$LIBS $SDL_LIBS"
 
 if (test x$enable_jpg = xyes || test x$enable_tif = xyes) && test x$enable_imageio != xyes; then
-    AC_CHECK_HEADER([jpeglib.h], [have_jpg_hdr=yes])
-    AC_CHECK_LIB([jpeg], [jpeg_CreateDecompress], [have_jpg_lib=yes])
+    PKG_CHECK_MODULES([LIBJPEG], [libjpeg], [dnl
+        have_jpg_hdr=yes
+        have_jpg_lib=yes
+        have_jpg_pc=yes
+      ], [dnl
+        AC_CHECK_HEADER([jpeglib.h], [
+            have_jpg_hdr=yes
+            LIBJPEG_CFLAGS=""
+        ])
+        AC_CHECK_LIB([jpeg], [jpeg_CreateDecompress], [
+            have_jpg_lib=yes
+            LIBJPEG_LIBS="-ljpeg"
+        ])
+      ])
     if test x$have_jpg_hdr = xyes -a x$have_jpg_lib = xyes; then
         if test x$enable_jpg = xyes; then
             AC_DEFINE([LOAD_JPG])
@@ -188,6 +253,7 @@ if test x$enable_png = xyes -a x$enable_imageio != xyes; then
     PKG_CHECK_MODULES([LIBPNG], [libpng], [dnl
         have_png_hdr=yes
         have_png_lib=yes
+        have_png_pc=yes
       ], [dnl
         AC_CHECK_HEADER([png.h], [
             have_png_hdr=yes
@@ -222,8 +288,20 @@ if test x$enable_png = xyes -a x$enable_imageio != xyes; then
 fi
 
 if test x$enable_tif = xyes -a x$enable_imageio != xyes; then
-    AC_CHECK_HEADER([tiffio.h], [have_tif_hdr=yes])
-    AC_CHECK_LIB([tiff], [TIFFClientOpen], [have_tif_lib=yes], [], [-lz])
+    PKG_CHECK_MODULES([LIBTIFF], [libtiff-4], [dnl
+        have_tif_hdr=yes
+        have_tif_lib=yes
+        have_tif_pc=yes
+      ], [dnl
+        AC_CHECK_HEADER([tiffio.h], [
+            have_tif_hdr=yes
+            LIBTIFF_CFLAGS=""
+        ])
+        AC_CHECK_LIB([tiff], [TIFFClientOpen], [
+            have_tif_lib=yes
+            LIBTIFF_LIBS="-ltiff -lz"
+        ], [], [-lz])
+      ])
     if test x$have_tif_hdr = xyes -a x$have_tif_lib = xyes; then
         AC_DEFINE([LOAD_TIF])
 
@@ -256,6 +334,7 @@ if test x$enable_webp = xyes; then
     PKG_CHECK_MODULES([LIBWEBP], [lib$webplib], [dnl
         have_webp_hdr=yes
         have_webp_lib=yes
+        have_webp_pc=yes
       ], [dnl
         AC_CHECK_HEADER([webp/decode.h], [
             have_webp_hdr=yes
@@ -329,6 +408,10 @@ if test x$enable_xv = xyes; then
     AC_DEFINE([LOAD_XV])
 fi
 
+if test x$enable_qoi = xyes; then
+    AC_DEFINE([LOAD_QOI])
+fi
+
 if test x$enable_webp = xyes -a x$have_webp_hdr = xyes -a x$have_webp_lib = xyes; then
     CFLAGS="$LIBWEBP_CFLAGS $CFLAGS"
     if test x$enable_webp_shared = xyes && test x$webp_lib != x; then
@@ -336,10 +419,16 @@ if test x$enable_webp = xyes -a x$have_webp_hdr = xyes -a x$have_webp_lib = xyes
         AC_DEFINE_UNQUOTED(LOAD_WEBP_DYNAMIC, "$webp_lib")
     else
         IMG_LIBS="$LIBWEBP_LIBS $IMG_LIBS"
+        if test x$have_webp_pc = xyes; then
+            PC_REQUIRES="lib$webplib $PC_REQUIRES"
+        else
+            PC_LIBS="$LIBWEBP_LIBS $PC_LIBS"
+        fi
     fi
 fi
 
 if test x$enable_tif = xyes -a x$have_tif_hdr = xyes -a x$have_tif_lib = xyes; then
+    CFLAGS="$LIBTIFF_CFLAGS $CFLAGS"
     if test x$enable_tif_shared = xyes && test x$tif_lib != x; then
         echo "-- dynamic libtiff -> $tif_lib"
         AC_DEFINE_UNQUOTED(LOAD_TIF_DYNAMIC, "$tif_lib")
@@ -348,15 +437,26 @@ if test x$enable_tif = xyes -a x$have_tif_hdr = xyes -a x$have_tif_lib = xyes; t
             # Disable dynamic jpeg since we're linking it explicitly
             jpg_lib=''
         fi
-        IMG_LIBS="-ltiff -lz $IMG_LIBS"
+        IMG_LIBS="$LIBTIFF_LIBS $IMG_LIBS"
+        if test x$have_tif_pc = xyes; then
+            PC_REQUIRES="libtiff-4 $PC_REQUIRES"
+        else
+            PC_LIBS="$LIBTIFF_LIBS $PC_LIBS"
+        fi
     fi
 fi
 if test x$enable_jpg = xyes -a x$have_jpg_hdr = xyes -a x$have_jpg_lib = xyes; then
+    CFLAGS="$LIBJPEG_CFLAGS $CFLAGS"
     if test x$enable_jpg_shared = xyes && test x$jpg_lib != x; then
         echo "-- dynamic libjpeg -> $jpg_lib"
         AC_DEFINE_UNQUOTED(LOAD_JPG_DYNAMIC, "$jpg_lib")
     else
-        IMG_LIBS="-ljpeg $IMG_LIBS"
+        IMG_LIBS="$LIBJPEG_LIBS $IMG_LIBS"
+        if test x$have_jpg_pc = xyes; then
+            PC_REQUIRES="libjpeg $PC_REQUIRES"
+        else
+            PC_LIBS="$LIBJPEG_LIBS $PC_LIBS"
+        fi
     fi
 fi
 if test x$enable_png = xyes -a x$have_png_hdr = xyes -a x$have_png_lib = xyes; then
@@ -366,21 +466,21 @@ if test x$enable_png = xyes -a x$have_png_hdr = xyes -a x$have_png_lib = xyes; t
         AC_DEFINE_UNQUOTED(LOAD_PNG_DYNAMIC, "$png_lib")
     else
         IMG_LIBS="$LIBPNG_LIBS $IMG_LIBS"
+        if test x$have_png_pc = xyes; then
+            PC_REQUIRES="libpng $PC_REQUIRES"
+        else
+            PC_LIBS="$LIBPNG_LIBS $PC_LIBS"
+        fi
     fi
 fi
 
-dnl Check for SDL
-SDL_VERSION=2.0.8
-AC_SUBST(SDL_VERSION)
-AM_PATH_SDL2($SDL_VERSION,
-            :,
-            AC_MSG_ERROR([*** SDL version $SDL_VERSION not found!])
-)
-CFLAGS="$CFLAGS $SDL_CFLAGS"
-LIBS="$LIBS $SDL_LIBS"
-
 AC_SUBST([WINDRES])
 AC_SUBST([IMG_LIBS])
+AC_SUBST([PC_LIBS])
+AC_SUBST([PC_REQUIRES])
+
+dnl check for GCC visibility attributes
+CheckVisibilityHidden
 
 OBJCFLAGS=$CFLAGS
 

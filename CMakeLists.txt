@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.3.2)
 project(SDL_image C)
 
+# FIXME: CMAKE SUPPORT IN SDL2_image IS VERY INCOMPLETE YET !!!
+#
+# FIXME: make it able build against system codec libraries, too.
+# FIXME: handle library versioning.
+# FIXME: test accross different target platforms.
+
 if (NOT ANDROID AND NOT (TARGET SDL2 OR TARGET SDL2-static))
 	find_package(SDL2 REQUIRED)
 endif()
@@ -14,7 +20,7 @@ if (APPLE)
 	option(ENABLE_APPLE_IMAGEIO "Use native Mac OS X frameworks for loading images" ON)
 endif()
 
-
+# FIXME: ????
 if (NOT BUILD_SHARED_LIBS)
 	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
@@ -34,11 +40,13 @@ endif()
 
 target_sources(SDL2_image PRIVATE IMG.c IMG_png.c IMG_bmp.c IMG_gif.c
 		IMG_jpg.c IMG_lbm.c IMG_pcx.c IMG_pnm.c IMG_svg.c IMG_tga.c
-		IMG_tif.c IMG_webp.c IMG_WIC.c IMG_xcf.c IMG_xpm.c IMG_xv.c IMG_xxx.c ${IMAGEIO_SOURCES})
+		IMG_tif.c IMG_webp.c IMG_WIC.c IMG_xcf.c IMG_xpm.c IMG_xv.c
+		IMG_qoi.c IMG_xxx.c ${IMAGEIO_SOURCES})
 
 target_compile_definitions(SDL2_image PRIVATE
 		-DLOAD_BMP -DLOAD_GIF -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM
-		-DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_XPM)
+		-DLOAD_TGA -DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_XPM
+		-DLOAD_QOI)
 
 if (SUPPORT_JPG)
 	target_compile_definitions(SDL2_image PRIVATE -DLOAD_JPG)
