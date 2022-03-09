@@ -279,7 +279,11 @@ SDL_Surface *IMG_LoadPNG_RW(SDL_RWops *src)
 #ifndef LIBPNG_VERSION_12
     if ( setjmp(*lib.png_set_longjmp_fn(png_ptr, longjmp, sizeof (jmp_buf))) )
 #else
-    if ( setjmp(png_ptr->jmpbuf) )
+#if __MORPHOS__ &&  _JBLEN != 59
+	if ( setjmp59(png_ptr->jmpbuf59))
+#else
+	if ( setjmp(png_ptr->jmpbuf))
+#endif
 #endif
     {
         error = "Error reading the PNG file.";
@@ -538,7 +542,11 @@ static int IMG_SavePNG_RW_libpng(SDL_Surface *surface, SDL_RWops *dst, int freed
 #ifndef LIBPNG_VERSION_12
         if (setjmp(*lib.png_set_longjmp_fn(png_ptr, longjmp, sizeof (jmp_buf))))
 #else
-        if (setjmp(png_ptr->jmpbuf))
+#if __MORPHOS__ &&  _JBLEN != 59
+		if (setjmp59(png_ptr->jmpbuf59))
+#else
+		if (setjmp(png_ptr->jmpbuf))
+#endif
 #endif
 #endif
         {
