@@ -445,4 +445,44 @@
 		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 334))(__t__p0));\
 	})
 
+#define IMG_isJXL(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(SDL_RWops *))*(void**)(__base - 340))(__t__p0));\
+	})
+
+#define IMG_LoadJXL_RW(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 346))(__t__p0));\
+	})
+
+#define IMG_ReadXPMFromArrayToRGB888(__p0) \
+	({ \
+		char ** __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(char **))*(void**)(__base - 352))(__t__p0));\
+	})
+
+#define IMG_isAVIF(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((int (*)(SDL_RWops *))*(void**)(__base - 358))(__t__p0));\
+	})
+
+#define IMG_LoadAVIF_RW(__p0) \
+	({ \
+		SDL_RWops * __t__p0 = __p0;\
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((SDL_Surface *(*)(SDL_RWops *))*(void**)(__base - 364))(__t__p0));\
+	})
+
 #endif /* !_PPCINLINE_SDL2_IMAGE_H */

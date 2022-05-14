@@ -59,5 +59,10 @@ IMG_isCUR(src)(sysv,r12base)
 IMG_LoadCUR_RW(src)(sysv,r12base)
 IMG_isQOI(src)(sysv,r12base)
 IMG_LoadQOI_RW(src)(sysv,r12base)
+IMG_isJXL(src)(sysv,r12base)
+IMG_LoadJXL_RW(src)(sysv,r12base)
+IMG_ReadXPMFromArrayToRGB888(xpm)(sysv,r12base)
+IMG_isAVIF(src)(sysv,r12base)
+IMG_LoadAVIF_RW(src)(sysv,r12base)
 
 ##end

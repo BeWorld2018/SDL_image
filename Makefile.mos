@@ -2,8 +2,10 @@
 
 CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE  \
 			-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
-			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF  -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DSDL_IMAGE_SAVE_PNG=1
+			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF  -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1
 CC      = 	ppc-morphos-gcc-9 -noixemul
+
+# TODO: -DLOAD_JXL -DLOAD_AVIF 
 
 LIBS_EXT = -L/usr/local/lib -lwebp 
 
@@ -27,21 +29,24 @@ TARGET  = libSDL2_image.a
 LIBRARY = sdl2_image.library
 
 SOURCES = \
-	IMG.c				\
+	IMG.c		\
+	IMG_avif.c	\
 	IMG_bmp.c	\
-	IMG_gif.c		\
-	IMG_jpg.c		\
-	IMG_lbm.c		\
-	IMG_pcx.c		\
-	IMG_png.c		\
+	IMG_gif.c	\
+	IMG_jpg.c	\
+	IMG_jxl.c	\
+	IMG_lbm.c	\
+	IMG_pcx.c	\
+	IMG_png.c	\
 	IMG_pnm.c	\
-	IMG_qoi.c 		\
-	IMG_svg.c		\
-	IMG_tga.c		\
-	IMG_tif.c			\
-	IMG_xcf.c		\
+	IMG_qoi.c	\
+	IMG_stb.c	\
+	IMG_svg.c	\
+	IMG_tga.c	\
+	IMG_tif.c	\
+	IMG_xcf.c	\
 	IMG_xpm.c	\
-	IMG_xv.c		\
+	IMG_xv.c	\
 	IMG_webp.c	\
 	IMG_WIC.c 	\
 	IMG_xxx.c
@@ -90,7 +95,7 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/usr/local/lib -lSDL2 -lm $(LIBS_EXT)
+	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/usr/local/lib -lSDL2 $(LIBS_EXT) -lm
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
