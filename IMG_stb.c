@@ -40,15 +40,21 @@
 #define strncmp SDL_strncmp
 #define strtol SDL_strtol
 
-#ifndef __WATCOMC__ /* watcom has issues */
 #define pow SDL_pow
 #define ldexp SDL_scalbn
-#endif
 
 #define STB_IMAGE_STATIC
+#define STBI_NO_THREAD_LOCALS
+#define STBI_FAILURE_USERMSG
+#if defined(__ARM_NEON)
+#define STBI_NEON
+#endif
 #define STBI_NO_STDIO
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
+#define STBI_NO_GIF
+#define STBI_NO_HDR
+#define STBI_NO_LINEAR
 #define STBI_ASSERT SDL_assert
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -69,8 +75,7 @@ static int IMG_LoadSTB_RW_eof(void *user)
     size_t bytes, filler;
     SDL_RWops *src = (SDL_RWops*) user;
     bytes = SDL_RWread(src, &filler, 1, 1);
-    if (bytes != 1) /* FIXME: Could also be an error... */
-    {
+    if (bytes != 1) { /* FIXME: Could also be an error... */
         return 1;
     }
     SDL_RWseek(src, -1, RW_SEEK_CUR);
@@ -109,7 +114,6 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     );
     if ( !pixels ) {
         SDL_RWseek(src, start, RW_SEEK_SET);
-        IMG_SetError("%s", stbi_failure_reason());
         return NULL;
     }
 
@@ -121,7 +125,7 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     gmask = 0x00FF0000 >> shift;
     bmask = 0x0000FF00 >> shift;
     amask = 0x000000FF >> shift;
-#else // little endian, like x86
+#else /* little endian, like x86 */
     rmask = 0x000000FF;
     gmask = 0x0000FF00;
     bmask = 0x00FF0000;
@@ -142,7 +146,7 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     );
     if ( !surface ) {
         /* The error message should already be set */
-        SDL_free(pixels);
+        stbi_image_free(pixels); /* calls SDL_free() */
         SDL_RWseek(src, start, RW_SEEK_SET);
     } else {
         /* FIXME: This sucks. It'd be better to allocate the surface first, then

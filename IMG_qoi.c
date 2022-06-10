@@ -81,27 +81,27 @@ SDL_Surface *IMG_LoadQOI_RW(SDL_RWops *src)
     }
 
     pixel_data = qoi_decode(data, (int)size, &image_info, 4);
+    /* pixel_data is in R,G,B,A order regardless of endianness */
     SDL_free(data);
     if ( !pixel_data ) {
         IMG_SetError("Couldn't parse QOI image");
         return NULL;
     }
 
-    surface = SDL_CreateRGBSurface(SDL_SWSURFACE,
-                                   image_info.width,
-                                   image_info.height,
-                                   32,
-                                   0x000000FF,
-                                   0x0000FF00,
-                                   0x00FF0000,
-                                   0xFF000000);
+    surface = SDL_CreateRGBSurfaceWithFormatFrom(pixel_data,
+                                                 image_info.width,
+                                                 image_info.height,
+                                                 32,
+					         (image_info.width * 4),
+                                                 SDL_PIXELFORMAT_RGBA32);
     if ( !surface ) {
         SDL_free(pixel_data);
         IMG_SetError("Couldn't create SDL_Surface");
         return NULL;
     }
 
-    SDL_memcpy(surface->pixels, pixel_data, image_info.width*image_info.height*4);
+    /* Let SDL manage the memory now */
+    surface->flags &= ~SDL_PREALLOC;
 
     return surface;
 }

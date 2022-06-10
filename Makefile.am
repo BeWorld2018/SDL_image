@@ -40,18 +40,27 @@ libSDL2_image_la_SOURCES =	\
 	stb_image.h		\
 	tiny_jpeg.h
 
-EXTRA_DIST = CHANGES.txt LICENSE.txt README.txt README-emscripten.txt \
-	IMG_xxx.c		\
-	IMG_ImageIO.m		\
+EXTRA_DIST = \
+	.gitmodules		\
 	Android.mk		\
+	CHANGES.txt 		\
+	CMakeLists.txt		\
+	cmake			\
+	SDL2_imageConfig.cmake.in \
+	IMG_ImageIO.m		\
+	IMG_xxx.c		\
+	LICENSE.txt 		\
 	Makefile.os2		\
+	mingw			\
+	README-emscripten.txt 	\
+	README.txt 		\
+	SDL2_image.spec		\
 	VisualC			\
 	VisualC-WinRT		\
-	version.rc		\
 	Xcode			\
+	autogen.sh		\
 	external		\
-	SDL2_image.spec		\
-	autogen.sh .gitmodules
+	version.rc
 
 
 libSDL2_image_la_LDFLAGS = 	\
@@ -74,6 +83,12 @@ noinst_PROGRAMS = showimage showanim
 showimage_LDADD = libSDL2_image.la
 showanim_LDADD = libSDL2_image.la
 
+SUBDIRS = .
+
+if BUILD_TESTS
+SUBDIRS += test
+endif
+
 # Rule to build tar-gzipped distribution package
 $(PACKAGE)-$(VERSION).tar.gz: distcheck
 
@@ -83,3 +98,13 @@ rpm: $(PACKAGE)-$(VERSION).tar.gz
 
 dist-hook:
 	ls $(distdir)/external | fgrep -v download.sh | while read dir; do rm -rf "$(distdir)/external/$$dir"; done
+
+install-data-local:
+	$(MKDIR_P) $(DESTDIR)$(libdir)/cmake/SDL2_image
+	$(INSTALL) -m 644 sdl2_image-config.cmake $(DESTDIR)$(libdir)/cmake/SDL2_image
+	$(INSTALL) -m 644 sdl2_image-config-version.cmake $(DESTDIR)$(libdir)/cmake/SDL2_image
+
+uninstall-hook:
+	rm $(DESTDIR)$(libdir)/cmake/SDL2_image/sdl2_image-config.cmake
+	rm $(DESTDIR)$(libdir)/cmake/SDL2_image/sdl2_image-config-version.cmake
+	rm -r $(DESTDIR)$(libdir)/cmake/SDL2_image

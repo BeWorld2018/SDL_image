@@ -28,8 +28,8 @@
 
 
 /* We'll have JPG save support by default */
-#ifndef SAVE_JPG
-#define SAVE_JPG    1
+#ifndef SDL_IMAGE_SAVE_JPG
+#define SDL_IMAGE_SAVE_JPG    1
 #endif
 
 #if defined(USE_STBIMAGE)
@@ -570,11 +570,9 @@ static void jpeg_SDL_RW_dest(j_compress_ptr cinfo, SDL_RWops *ctx)
 
 static int IMG_SaveJPG_RW_jpeglib(SDL_Surface *surface, SDL_RWops *dst, int freedst, int quality)
 {
-#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+    /* The JPEG library reads bytes in R,G,B order, so this is the right
+     * encoding for either endianness */
     static const Uint32 jpg_format = SDL_PIXELFORMAT_RGB24;
-#else
-    static const Uint32 jpg_format = SDL_PIXELFORMAT_BGR24;
-#endif
     struct jpeg_compress_struct cinfo;
     struct my_error_mgr jerr;
     JSAMPROW row_pointer[1];
@@ -758,19 +756,17 @@ SDL_Surface *IMG_LoadJPG_RW(SDL_RWops *src)
 #endif /* LOAD_JPG */
 
 /* Use tinyjpeg as a fallback if we don't have a hard dependency on libjpeg */
-#if SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB))
+#if SDL_IMAGE_SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB))
 
-#ifdef __WATCOMC__ /* watcom has issues.. */
-#define ceilf ceil
-#define floorf floor
-#define cosf cos
-#else
+#define assert SDL_assert
+#undef memcpy
+#define memcpy SDL_memcpy
+#undef memset
+#define memset SDL_memset
+
 #define ceilf SDL_ceilf
 #define floorf SDL_floorf
 #define cosf SDL_cosf
-#endif
-#define assert SDL_assert
-#define memcpy SDL_memcpy
 
 #define tje_log SDL_Log
 #define TJE_IMPLEMENTATION
@@ -783,11 +779,9 @@ static void IMG_SaveJPG_RW_tinyjpeg_callback(void* context, void* data, int size
 
 static int IMG_SaveJPG_RW_tinyjpeg(SDL_Surface *surface, SDL_RWops *dst, int freedst, int quality)
 {
-#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+    /* The JPEG library reads bytes in R,G,B order, so this is the right
+     * encoding for either endianness */
     static const Uint32 jpg_format = SDL_PIXELFORMAT_RGB24;
-#else
-    static const Uint32 jpg_format = SDL_PIXELFORMAT_BGR24;
-#endif
     SDL_Surface* jpeg_surface = surface;
     int result = -1;
 
@@ -820,7 +814,8 @@ static int IMG_SaveJPG_RW_tinyjpeg(SDL_Surface *surface, SDL_RWops *dst, int fre
         jpeg_surface->w,
         jpeg_surface->h,
         3,
-        jpeg_surface->pixels
+        jpeg_surface->pixels,
+        jpeg_surface->pitch
     ) - 1; /* tinyjpeg returns 0 on error, 1 on success */
 
     if (jpeg_surface != surface) {
@@ -838,7 +833,7 @@ done:
     return result;
 }
 
-#endif /* SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB)) */
+#endif /* SDL_IMAGE_SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB)) */
 
 int IMG_SaveJPG(SDL_Surface *surface, const char *file, int quality)
 {
@@ -852,7 +847,7 @@ int IMG_SaveJPG(SDL_Surface *surface, const char *file, int quality)
 
 int IMG_SaveJPG_RW(SDL_Surface *surface, SDL_RWops *dst, int freedst, int quality)
 {
-#if SAVE_JPG
+#if SDL_IMAGE_SAVE_JPG
 #ifdef USE_JPEGLIB
     if ((IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG) != 0) {
         if (IMG_SaveJPG_RW_jpeglib(surface, dst, freedst, quality) == 0) {

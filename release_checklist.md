@@ -18,6 +18,8 @@
         `FILEVERSION`, `PRODUCTVERSION`, `FileVersion`, `ProductVersion`
     * `VisualC/Version.rc`:
         `FILEVERSION`, `PRODUCTVERSION`, `FileVersion`, `ProductVersion`
+    * `Xcode/Info-Framework.plist`:
+        `CFBundleShortVersionString`, `CFBundleVersion`
 
 * Bump ABI version information
 
@@ -28,6 +30,9 @@
         * set second number in `DYLIB_CURRENT_VERSION` to 0
         * if backwards compatibility has been broken,
             increase `DYLIB_COMPATIBILITY_VERSION` (?)
+	* `CMakeLists.txt`:
+		* if backwards compatibility has been broken,
+		  increase `DYLIB_COMPATIBILITY_VERSION` (?)
 
 * Run `./test-versioning.sh` to verify that everything is consistent
 
