@@ -3,8 +3,8 @@ dnl Process this file with autoconf to produce a configure script.
 dnl Set various version strings - taken gratefully from the GTk sources
 # See docs/release_checklist.md
 m4_define([MAJOR_VERSION_MACRO], [2])
-m4_define([MINOR_VERSION_MACRO], [7])
-m4_define([MICRO_VERSION_MACRO], [0])
+m4_define([MINOR_VERSION_MACRO], [6])
+m4_define([MICRO_VERSION_MACRO], [2])
 
 AC_INIT([SDL2_image],
         [MAJOR_VERSION_MACRO.MINOR_VERSION_MACRO.MICRO_VERSION_MACRO],
@@ -61,17 +61,12 @@ dnl Setup for automake
 AM_INIT_AUTOMAKE([foreign tar-ustar])
 
 dnl Check for tools
-AC_PROG_AWK
 AC_PROG_CC
 AC_PROG_OBJC
 AC_CHECK_TOOL(RC,[windres],[:])
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 PKG_PROG_PKG_CONFIG
-
-if [ test -z "$AWK" ]; then
-    AC_MSG_ERROR([*** awk not found, aborting])
-fi
 
 case "$host" in
     *-*-beos*)
@@ -137,7 +132,7 @@ find_lib()
         host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
     for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
-        lib=[`ls -- $path/$1 2>/dev/null | sed 's,.*/,,' | sort -V -r | $AWK 'BEGIN{FS="."}{ print NF, $0 }' | sort -n -s | sed 's,[0-9]* ,,' | head -1`]
+        lib=[`ls -- $path/$1 2>/dev/null | sed -e '/\.so\..*\./d' -e 's,.*/,,' | sort | tail -1`]
         if test x$lib != x; then
             echo $lib
             return
@@ -766,9 +761,8 @@ AM_CONDITIONAL([BUILD_TESTS], [test "x$enable_tests" = xyes])
 AM_CONDITIONAL([INSTALL_TESTS], [test "x$enable_installed_tests" = xyes])
 
 dnl Calculate the location of the prefix, relative to the cmake folder
-eval pkg_prefix=$prefix
-eval pkg_cmakedir=$libdir/cmake/SDL2_image
-cmake_prefix_relpath="$(echo -n "$pkg_cmakedir" | sed -E "s#^$pkg_prefix##" | sed -E "s#[A-Za-z0-9_ .-]+#..#g")"
+pkg_cmakedir='$libdir/cmake/SDL2_image'
+AX_COMPUTE_RELATIVE_PATHS([pkg_cmakedir:prefix:cmake_prefix_relpath])
 AC_SUBST([cmake_prefix_relpath])
 
 dnl check for LD --no-undefined option
