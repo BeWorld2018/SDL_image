@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		007288A80F0DA79800C302A9 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 007288A60F0DA79800C302A9 /* ApplicationServices.framework */; };
+		007288A80F0DA79800C302A9 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 007288A60F0DA79800C302A9 /* ApplicationServices.framework */; platformFilters = (macos, ); };
 		6313BF532785566D00F268AD /* IMG_qoi.c in Sources */ = {isa = PBXBuildFile; fileRef = 6313BF522785566D00F268AD /* IMG_qoi.c */; };
 		6313BF542785566D00F268AD /* IMG_qoi.c in Sources */ = {isa = PBXBuildFile; fileRef = 6313BF522785566D00F268AD /* IMG_qoi.c */; };
 		AA23FC7D20A2A1B90017DFB9 /* IMG_svg.c in Sources */ = {isa = PBXBuildFile; fileRef = AA50AA461F9C7C50003B9C0C /* IMG_svg.c */; };
@@ -554,7 +554,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "PRODUCT_NAME=SDL2_image\n\n# Sign framework\nif [ \"$SDL_CODESIGN_IDENTITY\" != \"\" ]; then\n    codesign --force --deep --sign \"$SDL_CODESIGN_IDENTITY\" $TARGET_BUILD_DIR/$PRODUCT_NAME.framework/Versions/A || exit $?\nfi\n\n# clean up the framework, remove headers, extra files\nmkdir -p build/dmg-tmp\ncp -a $TARGET_BUILD_DIR/$PRODUCT_NAME.framework build/dmg-tmp/\ncp pkg-support/resources/ReadMe.txt build/dmg-tmp\n\n# remove the .DS_Store files if any (we may want to provide one in the future for fancy .dmgs)\nrm -rf build/dmg-tmp/.DS_Store\n\n# create the dmg\nhdiutil create -ov -fs HFS+ -volname $PRODUCT_NAME -srcfolder build/dmg-tmp build/$PRODUCT_NAME.dmg\n\n# clean up\nrm -rf build/dmg-tmp\n";
+			shellScript = "PRODUCT_NAME=SDL2_image\nOPTIONAL_FRAMEWORKS=\"avif jxl webp\"\n\n# Sign framework\nif [ \"$SDL_CODESIGN_IDENTITY\" != \"\" ]; then\n    codesign --force --deep --sign \"$SDL_CODESIGN_IDENTITY\" --preserve-metadata\\=identifier,entitlements,flags --generate-entitlement-der $TARGET_BUILD_DIR/$PRODUCT_NAME.framework/Versions/A || exit $?\nfi\n\n# clean up the framework, remove headers, extra files\nmkdir -p build/dmg-tmp\ncp -a $TARGET_BUILD_DIR/$PRODUCT_NAME.framework build/dmg-tmp/\ncp pkg-support/resources/ReadMe.txt build/dmg-tmp\nfor i in $OPTIONAL_FRAMEWORKS; do\n    if [ -d $TARGET_BUILD_DIR/$i.framework ]; then\n        if [ \"$SDL_CODESIGN_IDENTITY\" != \"\" ]; then\n            codesign --force --deep --sign \"$SDL_CODESIGN_IDENTITY\"  --preserve-metadata\\=identifier,entitlements,flags --generate-entitlement-der $TARGET_BUILD_DIR/$i.framework/Versions/A\n        fi\n        mkdir -p build/dmg-tmp/optional\n        cp -a $TARGET_BUILD_DIR/$i.framework build/dmg-tmp/optional/\n    fi\ndone\n\n# remove the .DS_Store files if any (we may want to provide one in the future for fancy .dmgs)\nrm -rf build/dmg-tmp/.DS_Store\n\n# create the dmg\nhdiutil create -ov -fs HFS+ -volname $PRODUCT_NAME -srcfolder build/dmg-tmp build/$PRODUCT_NAME.dmg\n\n# clean up\nrm -rf build/dmg-tmp\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -662,13 +662,13 @@
 					"\"$(SRCROOT)/../external/jpeg\"",
 				);
 				INFOPLIST_FILE = "Info-Framework.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				ONLY_ACTIVE_ARCH = YES;
 				PLATFORM = "";
 				"PLATFORM[sdk=appletvos*]" = tvOS;
@@ -751,13 +751,13 @@
 					"\"$(SRCROOT)/../external/jpeg\"",
 				);
 				INFOPLIST_FILE = "Info-Framework.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.7;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				PLATFORM = "";
 				"PLATFORM[sdk=appletvos*]" = tvOS;
 				"PLATFORM[sdk=iphoneos*]" = iOS;
