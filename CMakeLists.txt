@@ -306,6 +306,13 @@ if(APPLE)
         target_sources(SDL2_image PRIVATE
             IMG_ImageIO.m
         )
+
+        if (SDL2IMAGE_PNG AND NOT SDL2IMAGE_BACKEND_STB)
+            target_compile_definitions(SDL2_image PRIVATE PNG_USES_IMAGEIO)
+        endif()
+        if (SDL2IMAGE_JPG AND NOT SDL2IMAGE_BACKEND_STB)
+            target_compile_definitions(SDL2_image PRIVATE JPG_USES_IMAGEIO)
+        endif()
     else()
         target_compile_definitions(SDL2_image PRIVATE SDL_IMAGE_USE_COMMON_BACKEND)
     endif()
@@ -787,7 +794,7 @@ if(SDL2IMAGE_SAMPLES)
 
         if(SDL2IMAGE_SAMPLES_INSTALL)
             install(TARGETS ${prog}
-                RUNTIME DESTINATION "{CMAKE_INSTALL_BINDIR}"
+                RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
             )
         endif()
     endforeach()
