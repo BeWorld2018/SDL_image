@@ -7,7 +7,7 @@ CC      = 	ppc-morphos-gcc-11 -noixemul
 
 # TODO: -DLOAD_JXL -DLOAD_AVIF 
 
-LIBS_EXT = -L/usr/local/lib -lwebp 
+LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux
 
 INCLUDE = -I/usr/local/include/SDL2 -I/usr/local/include
 CFLAGS  = -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
