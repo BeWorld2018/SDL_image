@@ -23,7 +23,7 @@ void _EXIT_4_SDL2ImageBase(void) __attribute__((alias("__DSTP_cleanup_SDL2ImageB
 
 struct Library *SDL2ImageBase;
 
-static CONSTRUCTOR_P(init_SDL2ImageBase, 100)
+static CONSTRUCTOR_P(init_SDL2ImageBase, 101)
 {
 	static const char libname[] = "sdl2_image.library";
 	struct Library *base = OpenLibrary((STRPTR)libname, VERSION);
@@ -37,8 +37,9 @@ static CONSTRUCTOR_P(init_SDL2ImageBase, 100)
 	return (base == NULL);
 }
 
-static DESTRUCTOR_P(cleanup_SDL2ImageBase, 100)
+static DESTRUCTOR_P(cleanup_SDL2ImageBase, 101)
 {
 	CloseLibrary(SDL2ImageBase);
+	SDL2ImageBase = NULL;
 }
 #endif

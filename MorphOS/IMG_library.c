@@ -17,7 +17,7 @@ STATIC CONST TEXT libname[] = "sdl2_image.library";
 
 struct ExecBase   *SysBase  = NULL;
 struct DosLibrary *DOSBase  = NULL;
-struct Library    *SDL2Base = NULL;
+//struct Library    *SDL2Base = NULL;
 struct Library    *JFIFBase = NULL;
 struct Library    *PNGBase  = NULL;
 struct Library    *TIFFBase = NULL;
