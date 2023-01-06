@@ -30,52 +30,19 @@ APTR libnix_mempool;
 
 int SAVEDS AMIGA_Startup(struct SDL2ImageLibrary *LibBase)
 {
-	struct CTDT *ctdt = LibBase->ctdtlist, *last_ctdt = LibBase->last_ctdt;
-
 	SDL2ImageBase = &LibBase->Library;
 
 	if ((SDL2Base = OpenLibrary("sdl2.library", 53)) == NULL)
 		return 0;
 	
-	// Run constructors
-	while (ctdt < last_ctdt)
-	{
-		if (ctdt->priority >= 0)
-		{
-			if (ctdt->fp() != 0)
-				return 0;
-		}
-
-		ctdt++;
-	}
-
 	return 1;
 }
 
 VOID SAVEDS AMIGA_Cleanup(struct SDL2ImageLibrary *LibBase)
 {
-	struct CTDT *ctdt = LibBase->ctdtlist, *last_ctdt = LibBase->last_ctdt;
-
-	// Run destructors
-	while (ctdt < last_ctdt)
-	{
-		if (ctdt->priority < 0)
-		{
-			if (ctdt->fp != (int (*)(void)) -1)
-			{
-				ctdt->fp();
-			}
-		}
-
-		ctdt++;
-	}
-	
-	if (SDL2Base)
-	{
 		CloseLibrary(SDL2Base);
 		SDL2Base = NULL;
-	}
 }
 
-void __chkabort() { }
-void abort() { }
+void __chkabort(void) { }
+void abort(void) { for (;;) Wait(0); }

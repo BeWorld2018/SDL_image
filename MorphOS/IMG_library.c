@@ -33,36 +33,6 @@ STATIC ULONG LIB_Reserved(void)
 }
 
 /**********************************************************************
-	comp_ctdt
-
-	Sort constructors/destructors
-**********************************************************************/
-
-STATIC int comp_ctdt(struct CTDT *a, struct CTDT *b)
-{
-	if (a->priority == b->priority)
-		return (0);
-	if ((unsigned long)a->priority < (unsigned long) b->priority)
-		return (-1);
-
-	return (1);
-}
-
-STATIC VOID sort_ctdt(struct SDL2ImageLibrary *LibBase)
-{
-	extern struct CTDT __ctdtlist;
-	struct CTDT *ctdtlist = &__ctdtlist;
-
-	struct HunkSegment *seg = (struct HunkSegment *)(((unsigned int)ctdtlist) - sizeof(struct HunkSegment));
-	struct CTDT *_last_ctdt = (struct CTDT *)(((unsigned int)seg) + seg->Size);
-
-	qsort((struct CTDT *)ctdtlist, _last_ctdt - ctdtlist, sizeof(*ctdtlist), (int (*)(const void *, const void *))comp_ctdt);
-
-	LibBase->ctdtlist = ctdtlist;
-	LibBase->last_ctdt = _last_ctdt;
-}
-
-/**********************************************************************
 	init_libs
 **********************************************************************/
 
@@ -70,7 +40,6 @@ static int init_libs(struct SDL2ImageLibrary *base, struct ExecBase *SysBase)
 {
 	if ((DOSBase = base->MyDOSBase = (APTR)OpenLibrary("dos.library", 36)) != NULL)
 	{
-		sort_ctdt(base);
 		return 1;
 	}
 
@@ -385,4 +354,3 @@ const struct Resident __TEXTSEGMENT__ RomTag =
 };
 
 CONST ULONG __abox__ = 1;
-__asm("\n.section \".ctdt\",\"a\",@progbits\n__ctdtlist:\n.long -1,-1\n");
