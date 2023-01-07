@@ -66,7 +66,12 @@ int main(int argc, char *argv[])
         return(1);
     }
 
+#ifdef __MORPHOS__
+	flags = SDL_WINDOW_SHOWN;
+#else
     flags = SDL_WINDOW_HIDDEN;
+#endif
+
     for ( i=1; argv[i]; ++i ) {
         if ( SDL_strcmp(argv[i], "-fullscreen") == 0 ) {
             SDL_ShowCursor(0);
