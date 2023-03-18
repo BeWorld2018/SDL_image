@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -372,7 +372,7 @@ ReadColorMap(SDL_RWops *src, int number,
     unsigned char rgb[3];
     int flag;
 
-    flag = TRUE;
+    flag = 1;
 
     for (i = 0; i < number; ++i) {
         if (!ReadOK(src, rgb, sizeof(rgb))) {
@@ -391,6 +391,7 @@ ReadColorMap(SDL_RWops *src, int number,
     else
         *gray = PPM_TYPE;
 #else
+    (void) flag;
     *gray = 0;
 #endif
 

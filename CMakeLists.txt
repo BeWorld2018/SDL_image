@@ -46,6 +46,12 @@ else()
     set(vendored_default OFF)
 endif()
 
+set(sdl2image_install_enableable ON)
+if ((TARGET SDL2 OR TARGET SDL2-static) AND SDL2_DISABLE_INSTALL)
+    # Cannot install SDL2_image when SDL2 is built in same built, and is not installed.
+    set(sdl2image_install_enableable OFF)
+endif()
+
 include(CMakeDependentOption)
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
@@ -53,7 +59,7 @@ include(GNUInstallDirs)
 option(CMAKE_POSITION_INDEPENDENT_CODE "Build static libraries with -fPIC" ON)
 option(BUILD_SHARED_LIBS "Build the library as a shared library" ON)
 
-option(SDL2IMAGE_INSTALL "Enable SDL2_image install target" ${SDL2IMAGE_ROOTPROJECT})
+cmake_dependent_option(SDL2IMAGE_INSTALL "Enable SDL2_image install target" ${SDL2IMAGE_ROOTPROJECT} "${sdl2image_install_enableable}" OFF)
 option(SDL2IMAGE_DEPS_SHARED "Load dependencies dynamically" ON)
 option(SDL2IMAGE_VENDORED "Use vendored third-party libraries" ${vendored_default})
 
@@ -203,7 +209,6 @@ add_library(SDL2_image
     IMG_xcf.c
     IMG_xpm.c
     IMG_xv.c
-    IMG_xxx.c
 )
 add_library(SDL2_image::${sdl2_image_export_name} ALIAS SDL2_image)
 target_include_directories(SDL2_image PUBLIC
@@ -650,8 +655,8 @@ if(SDL2IMAGE_WEBP)
         target_get_dynamic_library(dynamic_webpdemux WebP::webpdemux)
         message(STATUS "Dynamic libwebpdemux: ${dynamic_webpdemux}")
         target_compile_definitions(SDL2_image PRIVATE "LOAD_WEBPDEMUX_DYNAMIC=\"${dynamic_webpdemux}\"")
-        target_get_dynamic_library(dynamic_webpdemux WebP::webp)
-        message(STATUS "Dynamic libwebpdemux: ${dynamic_webp}")
+        target_get_dynamic_library(dynamic_webp WebP::webp)
+        message(STATUS "Dynamic libwebp: ${dynamic_webp}")
         target_compile_definitions(SDL2_image PRIVATE "LOAD_WEBP_DYNAMIC=\"${dynamic_webp}\"")
         if(SDL2IMAGE_WEBP_VENDORED)
             add_dependencies(SDL2_image WebP::webp WebP::webpdemux)

@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -113,12 +113,12 @@ typedef enum
  *
  * Currently, these flags are:
  *
- * - `_INIT_JPG`
- * - `_INIT_PNG`
- * - `_INIT_TIF`
- * - `_INIT_WEBP`
- * - `_INIT_JXL`
- * - `_INIT_AVIF`
+ * - `IMG_INIT_JPG`
+ * - `IMG_INIT_PNG`
+ * - `IMG_INIT_TIF`
+ * - `IMG_INIT_WEBP`
+ * - `IMG_INIT_JXL`
+ * - `IMG_INIT_AVIF`
  *
  * More flags may be added in a future SDL_image release.
  *
@@ -380,7 +380,7 @@ extern DECLSPEC SDL_Surface * SDLCALL IMG_Load_RW(SDL_RWops *src, int freesrc);
  *
  * \sa IMG_LoadTextureTyped_RW
  * \sa IMG_LoadTexture_RW
- * \sa [SDL_DestroyTexture](https://wiki.libsdl.org/SDL_DestroyTexture)
+ * \sa SDL_DestroyTexture
  */
 extern DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture(SDL_Renderer *renderer, const char *file);
 

@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -22,10 +22,6 @@
 #include "SDL_image.h"
 
 #ifdef USE_STBIMAGE
-
-#ifndef INT_MAX
-#define INT_MAX 0x7FFFFFFF
-#endif
 
 #define malloc SDL_malloc
 #define realloc SDL_realloc
@@ -61,19 +57,19 @@
 
 static int IMG_LoadSTB_RW_read(void *user, char *data, int size)
 {
-    return (int) SDL_RWread((SDL_RWops*) user, data, 1, size);
+    return (int) SDL_RWread((SDL_RWops*)user, data, 1, size);
 }
 
 static void IMG_LoadSTB_RW_skip(void *user, int n)
 {
-    SDL_RWseek((SDL_RWops*) user, n, RW_SEEK_CUR);
+    SDL_RWseek((SDL_RWops*)user, n, RW_SEEK_CUR);
 }
 
 static int IMG_LoadSTB_RW_eof(void *user)
 {
     /* FIXME: Do we not have a way to detect EOF? -flibit */
     size_t bytes, filler;
-    SDL_RWops *src = (SDL_RWops*) user;
+    SDL_RWops *src = (SDL_RWops*)user;
     bytes = SDL_RWread(src, &filler, 1, 1);
     if (bytes != 1) { /* FIXME: Could also be an error... */
         return 1;
@@ -90,7 +86,7 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     stbi_io_callbacks rw_callbacks;
     SDL_Surface *surface = NULL;
 
-    if ( !src ) {
+    if (!src) {
         /* The error message has been set in SDL_RWFromFile */
         return NULL;
     }
@@ -100,6 +96,7 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     rw_callbacks.read = IMG_LoadSTB_RW_read;
     rw_callbacks.skip = IMG_LoadSTB_RW_skip;
     rw_callbacks.eof = IMG_LoadSTB_RW_eof;
+    w = h = format = 0; /* silence warning */
     pixels = stbi_load_from_callbacks(
         &rw_callbacks,
         src,
@@ -108,7 +105,7 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
         &format,
         STBI_default
     );
-    if ( !pixels ) {
+    if (!pixels) {
         SDL_RWseek(src, start, RW_SEEK_SET);
         return NULL;
     }

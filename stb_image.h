@@ -1,4 +1,4 @@
-/* stb_image - v2.27 - public domain image loader - http://nothings.org/stb
+/* stb_image - v2.28 - public domain image loader - http://nothings.org/stb
                                   no warranty implied; use at your own risk
 
    Do this:
@@ -48,6 +48,7 @@ LICENSE
 
 RECENT REVISION HISTORY:
 
+      2.28  (2023-01-29) many error fixes, security errors, just tons of stuff
       2.27  (2021-07-11) document stbi_info better, 16-bit PNM support, bug fixes
       2.26  (2020-07-13) many minor fixes
       2.25  (2020-02-02) fix warnings
@@ -140,7 +141,7 @@ RECENT REVISION HISTORY:
 //    // ... x = width, y = height, n = # 8-bit components per pixel ...
 //    // ... replace '0' with '1'..'4' to force that many components per pixel
 //    // ... but 'n' will always be the number that it would have been if you said 0
-//    stbi_image_free(data)
+//    stbi_image_free(data);
 //
 // Standard parameters:
 //    int *x                 -- outputs image width in pixels
@@ -674,7 +675,7 @@ STBIDEF int   stbi_zlib_decode_noheader_buffer(char *obuffer, int olen, const ch
 #endif
 
 #if 0 /* SDL_image change */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SYMBIAN32__)
 typedef unsigned short stbi__uint16;
 typedef   signed short stbi__int16;
 typedef unsigned int   stbi__uint32;
@@ -3456,6 +3457,28 @@ static int stbi__decode_jpeg_header(stbi__jpeg *z, int scan)
    return 1;
 }
 
+static int stbi__skip_jpeg_junk_at_end(stbi__jpeg *j)
+{
+   // some JPEGs have junk at end, skip over it but if we find what looks
+   // like a valid marker, resume there
+   while (!stbi__at_eof(j->s)) {
+      int x = stbi__get8(j->s);
+      while (x == 255) { // might be a marker
+         if (stbi__at_eof(j->s)) return STBI__MARKER_none;
+         x = stbi__get8(j->s);
+         if (x != 0x00 && x != 0xff) {
+            // not a stuffed zero or lead-in to another marker, looks
+            // like an actual marker, return it
+            return x;
+         }
+         // stuffed zero has x=0 now which ends the loop, meaning we go
+         // back to regular scan loop.
+         // repeated 0xff keeps trying to read the next byte of the marker.
+      }
+   }
+   return STBI__MARKER_none;
+}
+
 // decode image to YCbCr format
 static int stbi__decode_jpeg_image(stbi__jpeg *j)
 {
@@ -3472,25 +3495,22 @@ static int stbi__decode_jpeg_image(stbi__jpeg *j)
          if (!stbi__process_scan_header(j)) return 0;
          if (!stbi__parse_entropy_coded_data(j)) return 0;
          if (j->marker == STBI__MARKER_none ) {
-            // handle 0s at the end of image data from IP Kamera 9060
-            while (!stbi__at_eof(j->s)) {
-               int x = stbi__get8(j->s);
-               if (x == 255) {
-                  j->marker = stbi__get8(j->s);
-                  break;
-               }
-            }
+         j->marker = stbi__skip_jpeg_junk_at_end(j);
             // if we reach eof without hitting a marker, stbi__get_marker() below will fail and we'll eventually return 0
          }
+         m = stbi__get_marker(j);
+         if (STBI__RESTART(m))
+            m = stbi__get_marker(j);
       } else if (stbi__DNL(m)) {
          int Ld = stbi__get16be(j->s);
          stbi__uint32 NL = stbi__get16be(j->s);
          if (Ld != 4) return stbi__err("bad DNL len", "Corrupt JPEG");
          if (NL != j->s->img_y) return stbi__err("bad DNL height", "Corrupt JPEG");
+         m = stbi__get_marker(j);
       } else {
-         if (!stbi__process_marker(j, m)) return 0;
+         if (!stbi__process_marker(j, m)) return 1;
+         m = stbi__get_marker(j);
       }
-      m = stbi__get_marker(j);
    }
    if (j->progressive)
       stbi__jpeg_finish(j);
@@ -4233,6 +4253,7 @@ typedef struct
 {
    stbi_uc *zbuffer, *zbuffer_end;
    int num_bits;
+   int hit_zeof_once;
    stbi__uint32 code_buffer;
 
    char *zout;
@@ -4299,9 +4320,20 @@ stbi_inline static int stbi__zhuffman_decode(stbi__zbuf *a, stbi__zhuffman *z)
    int b,s;
    if (a->num_bits < 16) {
       if (stbi__zeof(a)) {
-         return -1;   /* report error for unexpected end of data. */
+         if (!a->hit_zeof_once) {
+            // This is the first time we hit eof, insert 16 extra padding btis
+            // to allow us to keep going; if we actually consume any of them
+            // though, that is invalid data. This is caught later.
+            a->hit_zeof_once = 1;
+            a->num_bits += 16; // add 16 implicit zero bits
+         } else {
+            // We already inserted our extra 16 padding bits and are again
+            // out, this stream is actually prematurely terminated.
+            return -1;
+         }
+      } else {
+         stbi__fill_bits(a);
       }
-      stbi__fill_bits(a);
    }
    b = z->fast[a->code_buffer & STBI__ZFAST_MASK];
    if (b) {
@@ -4366,6 +4398,13 @@ static int stbi__parse_huffman_block(stbi__zbuf *a)
          int len,dist;
          if (z == 256) {
             a->zout = zout;
+            if (a->hit_zeof_once && a->num_bits < 16) {
+               // The first time we hit zeof, we inserted 16 extra zero bits into our bit
+               // buffer so the decoder can just do its speculative decoding. But if we
+               // actually consumed any of those bits (which is the case when num_bits < 16),
+               // the stream actually read past the end so it is malformed.
+               return stbi__err("unexpected end","Corrupt PNG");
+            }
             return 1;
          }
          if (z >= 286) return stbi__err("bad huffman code","Corrupt PNG"); // per DEFLATE, length codes 286 and 287 must not appear in compressed data
@@ -4377,7 +4416,7 @@ static int stbi__parse_huffman_block(stbi__zbuf *a)
          dist = stbi__zdist_base[z];
          if (stbi__zdist_extra[z]) dist += stbi__zreceive(a, stbi__zdist_extra[z]);
          if (zout - a->zout_start < dist) return stbi__err("bad dist","Corrupt PNG");
-         if (zout + len > a->zout_end) {
+         if (len > a->zout_end - zout) {
             if (!stbi__zexpand(a, zout, len)) return 0;
             zout = a->zout;
          }
@@ -4521,6 +4560,7 @@ static int stbi__parse_zlib(stbi__zbuf *a, int parse_header)
       if (!stbi__parse_zlib_header(a)) return 0;
    a->num_bits = 0;
    a->code_buffer = 0;
+   a->hit_zeof_once = 0;
    do {
       final = stbi__zreceive(a,1);
       type = stbi__zreceive(a,2);
@@ -5184,14 +5224,13 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
             if (!pal_img_n) {
                s->img_n = (color & 2 ? 3 : 1) + (color & 4 ? 1 : 0);
                if ((1 << 30) / s->img_x / s->img_n < s->img_y) return stbi__err("too large", "Image too large to decode");
-               if (scan == STBI__SCAN_header) return 1;
             } else {
                // if paletted, then pal_n is our final components, and
                // img_n is # components to decompress/filter.
                s->img_n = 1;
                if ((1 << 30) / s->img_x / 4 < s->img_y) return stbi__err("too large","Corrupt PNG");
-               // if SCAN_header, have to scan to see if we have a tRNS
             }
+            // even with SCAN_header, have to scan to see if we have a tRNS
             break;
          }
 
@@ -5223,6 +5262,8 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
                if (!(s->img_n & 1)) return stbi__err("tRNS with alpha","Corrupt PNG");
                if (c.length != (stbi__uint32) s->img_n*2) return stbi__err("bad tRNS len","Corrupt PNG");
                has_trans = 1;
+               // non-paletted with tRNS = constant alpha. if header-scanning, we can stop now.
+               if (scan == STBI__SCAN_header) { ++s->img_n; return 1; }
                if (z->depth == 16) {
                   for (k = 0; k < s->img_n; ++k) tc16[k] = (stbi__uint16)stbi__get16be(s); // copy the values as-is
                } else {
@@ -5235,7 +5276,12 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
          case STBI__PNG_TYPE('I','D','A','T'): {
             if (first) return stbi__err("first not IHDR", "Corrupt PNG");
             if (pal_img_n && !pal_len) return stbi__err("no PLTE","Corrupt PNG");
-            if (scan == STBI__SCAN_header) { s->img_n = pal_img_n; return 1; }
+            if (scan == STBI__SCAN_header) {
+               // header scan definitely stops at first IDAT
+               if (pal_img_n)
+                  s->img_n = pal_img_n;
+               return 1;
+            }
             if (c.length > (1u << 30)) return stbi__err("IDAT size limit", "IDAT section larger than 2^30 bytes");
             if ((int)(ioff + c.length) < (int)ioff) return 0;
             if (ioff + c.length > idata_limit) {
@@ -5306,6 +5352,7 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
                invalid_chunk[1] = STBI__BYTECAST(c.type >> 16);
                invalid_chunk[2] = STBI__BYTECAST(c.type >>  8);
                invalid_chunk[3] = STBI__BYTECAST(c.type >>  0);
+               (void)invalid_chunk;
                #endif
                return stbi__err(invalid_chunk, "PNG not supported: unknown PNG chunk type");
             }
@@ -5621,8 +5668,22 @@ static void *stbi__bmp_load(stbi__context *s, int *x, int *y, int *comp, int req
          psize = (info.offset - info.extra_read - info.hsz) >> 2;
    }
    if (psize == 0) {
-      if (info.offset != s->callback_already_read + (s->img_buffer - s->img_buffer_original)) {
-        return stbi__errpuc("bad offset", "Corrupt BMP");
+      // accept some number of extra bytes after the header, but if the offset points either to before
+      // the header ends or implies a large amount of extra data, reject the file as malformed
+      int bytes_read_so_far = s->callback_already_read + (int)(s->img_buffer - s->img_buffer_original);
+      int header_limit = 1024; // max we actually read is below 256 bytes currently.
+      int extra_data_limit = 256*4; // what ordinarily goes here is a palette; 256 entries*4 bytes is its max size.
+      if (bytes_read_so_far <= 0 || bytes_read_so_far > header_limit) {
+         return stbi__errpuc("bad header", "Corrupt BMP");
+      }
+      // we established that bytes_read_so_far is positive and sensible.
+      // the first half of this test rejects offsets that are either too small positives, or
+      // negative, and guarantees that info.offset >= bytes_read_so_far > 0. this in turn
+      // ensures the number computed in the second half of the test can't overflow.
+      if (info.offset < bytes_read_so_far || info.offset - bytes_read_so_far > extra_data_limit) {
+         return stbi__errpuc("bad offset", "Corrupt BMP");
+      } else {
+         stbi__skip(s, info.offset - bytes_read_so_far);
       }
    }
 
@@ -6573,7 +6634,7 @@ static void *stbi__pic_load(stbi__context *s,int *px,int *py,int *comp,int req_c
 
    if (!stbi__pic_load_core(s,x,y,comp, result)) {
       STBI_FREE(result);
-      result=0;
+      return 0;
    }
    *px = x;
    *py = y;
