@@ -11,7 +11,7 @@ AC_INIT([SDL2_image],
         [https://github.com/libsdl-org/SDL_image/issues],
         [SDL2_image])
 AC_CONFIG_MACRO_DIR([acinclude])
-AC_CONFIG_SRCDIR([IMG.c])
+AC_CONFIG_SRCDIR([src/IMG.c])
 
 AC_SUBST([MAJOR_VERSION], MAJOR_VERSION_MACRO)
 AC_SUBST([MINOR_VERSION], MINOR_VERSION_MACRO)
@@ -58,7 +58,7 @@ dnl Detect the canonical build and host environments
 AC_CANONICAL_HOST
 
 dnl Setup for automake
-AM_INIT_AUTOMAKE([foreign tar-ustar])
+AM_INIT_AUTOMAKE([foreign subdir-objects tar-ustar])
 
 dnl Check for tools
 AC_PROG_AWK
@@ -94,7 +94,7 @@ case "$host" in
             fi
         fi
         use_version_rc=true
-        LT_EXTRA="-Wl,version.o"
+        LT_EXTRA="-Wl,src/version.o"
         ;;
     *-*-darwin*)
         AC_ARG_ENABLE([imageio], [AS_HELP_STRING([--enable-imageio], [use native Mac OS X frameworks for loading images [default=yes]])],
@@ -306,19 +306,31 @@ AC_SUBST([USE_WIC], 0)
 
 load_avif=0
 if test x$enable_avif = xyes; then
-    PKG_CHECK_MODULES([LIBAVIF], [libavif], [dnl
+    PKG_CHECK_MODULES([LIBAVIF], [libavif >= 0.9.3], [dnl
         have_avif_hdr=yes
         have_avif_lib=yes
         have_avif_pc=yes
       ], [dnl
-        AC_CHECK_HEADER([avif/avif.h], [
+        save_LIBS="$LIBS"
+        LIBS="-lavif"
+        AC_LANG_PUSH([C])
+        AC_MSG_CHECKING([for libavif >= 0.9.3])
+        AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+          #include <avif/avif.h>
+        ]], [[
+          #if (AVIF_VERSION < 90300)
+          #error libavif too old.
+          #endif
+          return !!avifVersion();
+        ]])],[
             have_avif_hdr=yes
-            LIBAVIF_CFLAGS=""
-        ])
-        AC_CHECK_LIB([avif], [avifVersion], [
             have_avif_lib=yes
+            LIBAVIF_CFLAGS=""
             LIBAVIF_LIBS="-lavif"
-        ])
+        ], [have_avif_lib=no])
+        LIBS="$save_LIBS"
+        AC_LANG_POP([C])
+        AC_MSG_RESULT([$have_avif_lib])
       ])
     if test x$have_avif_hdr = xyes -a x$have_avif_lib = xyes; then
         if test x$enable_avif = xyes; then
@@ -426,7 +438,7 @@ if test x$enable_jxl = xyes; then
                 jxl_lib=[`find_lib libjxl.dylib`]
                 ;;
             *-*-cygwin* | *-*-mingw*)
-                jxl_lib=[`find_lib "libjxl*.dll"`]
+                jxl_lib=[`find_lib "libjxl.dll"`]
                 ;;
             *)
                 jxl_lib=[`find_lib "libjxl[0-9]*.so.*"`]
