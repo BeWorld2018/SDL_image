@@ -2,7 +2,8 @@
 
 CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE  \
 			-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
-			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF  -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1
+			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_JPG=1
+		
 CC      = 	ppc-morphos-gcc-11 -noixemul
 
 # TODO: -DLOAD_JXL -DLOAD_AVIF 
@@ -29,27 +30,27 @@ TARGET  = libSDL2_image.a
 LIBRARY = sdl2_image.library
 
 SOURCES = \
-	IMG.c		\
-	IMG_avif.c	\
-	IMG_bmp.c	\
-	IMG_gif.c	\
-	IMG_jpg.c	\
-	IMG_jxl.c	\
-	IMG_lbm.c	\
-	IMG_pcx.c	\
-	IMG_png.c	\
-	IMG_pnm.c	\
-	IMG_qoi.c	\
-	IMG_stb.c	\
-	IMG_svg.c	\
-	IMG_tga.c	\
-	IMG_tif.c	\
-	IMG_xcf.c	\
-	IMG_xpm.c	\
-	IMG_xv.c	\
-	IMG_webp.c	\
-	IMG_WIC.c 	\
-	IMG_xxx.c
+	src/IMG.c		\
+	src/IMG_avif.c	\
+	src/IMG_bmp.c	\
+	src/IMG_gif.c	\
+	src/IMG_jpg.c	\
+	src/IMG_jxl.c	\
+	src/IMG_lbm.c	\
+	src/IMG_pcx.c	\
+	src/IMG_png.c	\
+	src/IMG_pnm.c	\
+	src/IMG_qoi.c	\
+	src/IMG_stb.c	\
+	src/IMG_svg.c	\
+	src/IMG_tga.c	\
+	src/IMG_tif.c	\
+	src/IMG_xcf.c	\
+	src/IMG_xpm.c	\
+	src/IMG_xv.c	\
+	src/IMG_webp.c	\
+	src/IMG_WIC.c 	\
+	src/IMG_xxx.c
 		
 CORESOURCES = MorphOS/*.c
 COREOBJECTS = $(shell echo $(CORESOURCES) | sed -e 's,\.c,\.o,g')
@@ -65,7 +66,7 @@ sdk: sdklibs
 	mkdir -p /usr/local/include/SDL2
 	mkdir -p /usr/local/lib
 	mkdir -p /usr/local/lib/libb32
-	cp SDL_image.h /usr/local/include/SDL2/SDL_image.h
+	cp include/SDL_image.h /usr/local/include/SDL2/SDL_image.h
 	cp MorphOS/devenv/lib/libSDL2_image.a  /usr/local/lib/libSDL2_image.a
 	cp MorphOS/devenv/lib/libb32/libSDL2_image.a  /usr/local/lib/libb32/libSDL2_image.a
 
@@ -99,11 +100,14 @@ $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
-showimage: sdklibs showimage.c
-	$(CC) -noixemul -O2 -Wall showimage.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+testimage: test/main.c
+	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2
 
-showanim: sdklibs showanim.c
-	$(CC) -noixemul -O2 -Wall showanim.c -o $@ $(INCLUDE) -DUSE_INLINE_STDARG -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+showanim: examples/showanim.c
+	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+
+showimage: examples/showimage.c
+	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
 
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s

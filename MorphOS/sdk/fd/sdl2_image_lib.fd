@@ -64,5 +64,6 @@ IMG_LoadJXL_RW(src)(sysv,r12base)
 IMG_ReadXPMFromArrayToRGB888(xpm)(sysv,r12base)
 IMG_isAVIF(src)(sysv,r12base)
 IMG_LoadAVIF_RW(src)(sysv,r12base)
-
+IMG_LoadSizedSVG_RW(src,width,height)(sysv,r12base)
+IMG_LoadWEBPAnimation_RW(src)(sysv,r12base)
 ##end

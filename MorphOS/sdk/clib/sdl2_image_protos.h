@@ -97,6 +97,9 @@ SDL_Surface * IMG_ReadXPMFromArrayToRGB888(char **xpm);
 int IMG_isAVIF(SDL_RWops *src);
 SDL_Surface * IMG_LoadAVIF_RW(SDL_RWops *src);
 
+SDL_Surface *  IMG_LoadSizedSVG_RW(SDL_RWops *src, int width, int height);
+IMG_Animation * IMG_LoadWEBPAnimation_RW(SDL_RWops *src);
+
 #ifdef __cplusplus
 }
 #endif

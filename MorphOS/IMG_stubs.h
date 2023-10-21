@@ -96,4 +96,5 @@
 	STUB(IMG_isAVIF)
 	STUB(IMG_LoadAVIF_RW)
 	
-	
+	STUB(IMG_LoadSizedSVG_RW)
+	STUB(IMG_LoadWEBPAnimation_RW)
