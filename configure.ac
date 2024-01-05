@@ -3,8 +3,8 @@ dnl Process this file with autoconf to produce a configure script.
 dnl Set various version strings - taken gratefully from the GTk sources
 # See docs/release_checklist.md
 m4_define([MAJOR_VERSION_MACRO], [2])
-m4_define([MINOR_VERSION_MACRO], [6])
-m4_define([MICRO_VERSION_MACRO], [2])
+m4_define([MINOR_VERSION_MACRO], [9])
+m4_define([MICRO_VERSION_MACRO], [0])
 
 AC_INIT([SDL2_image],
         [MAJOR_VERSION_MACRO.MINOR_VERSION_MACRO.MICRO_VERSION_MACRO],
@@ -135,12 +135,13 @@ find_lib()
     gcc_bin_path=[`$CC -print-search-dirs 2>/dev/null | $FGREP programs: | sed 's/[^=]*=\(.*\)/\1/' | sed 's/:/ /g'`]
     gcc_lib_path=[`$CC -print-search-dirs 2>/dev/null | $FGREP libraries: | sed 's/[^=]*=\(.*\)/\1/' | sed 's/:/ /g'`]
     env_lib_path=[`echo $LIBS $LDFLAGS $* | sed 's/-L[ ]*//g'`]
+    env_bin_path=`echo $env_lib_path | sed 's,/lib,/bin,'`
     if test "$cross_compiling" = yes; then
         host_lib_path=""
     else
         host_lib_path="$ac_default_prefix/$base_libdir $ac_default_prefix/$base_bindir /usr/$base_libdir /usr/local/$base_libdir"
     fi
-    for path in $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
+    for path in $env_bin_path $env_lib_path $gcc_bin_path $gcc_lib_path $host_lib_path; do
         lib=[`ls -- $path/$1 2>/dev/null | sed 's,.*/,,' | $SORT -V -r | $AWK 'BEGIN{FS="."}{ print NF, $0 }' | $SORT -n -s | sed 's,[0-9]* ,,' | head -1`]
         if test x$lib != x; then
             echo $lib
@@ -339,10 +340,16 @@ if test x$enable_avif = xyes; then
 
         case "$host" in
             *-*-darwin*)
-                avif_lib=[`find_lib libavif.dylib`]
+                avif_lib=[`find_lib "libavif.[0-9]*.dylib"`]
+                if test x$avif_lib = x; then
+                    avif_lib=[`find_lib "libavif*.dylib"`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
-                avif_lib=[`find_lib "libavif*.dll"`]
+                avif_lib=[`find_lib "libavif-[0-9]*.dll"`]
+                if test x$avif_lib = x; then
+                    avif_lib=[`find_lib "libavif*.dll"`]
+                fi
                 ;;
             *)
                 avif_lib=[`find_lib "libavif[0-9]*.so.*"`]
@@ -391,7 +398,10 @@ if test x$enable_jpg = xyes; then
 
             case "$host" in
                 *-*-darwin*)
-                    jpg_lib=[`find_lib libjpeg.dylib`]
+                    jpg_lib=[`find_lib "libjpeg.[0-9]*.dylib"`]
+                    if test x$jpg_lib = x; then
+                       jpg_lib=[`find_lib libjpeg.dylib`]
+                    fi
                     ;;
                 *-*-cygwin* | *-*-mingw*)
                     jpg_lib=[`find_lib "libjpeg*.dll"`]
@@ -435,10 +445,16 @@ if test x$enable_jxl = xyes; then
 
         case "$host" in
             *-*-darwin*)
-                jxl_lib=[`find_lib libjxl.dylib`]
+                jxl_lib=[`find_lib "libjxl.[0-9]*.dylib"`]
+                if test x$jxl_lib = x; then
+                   jxl_lib=[`find_lib libjxl.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
-                jxl_lib=[`find_lib "libjxl.dll"`]
+                jxl_lib=[`find_lib "libjxl-[0-9]*.dll"`]
+                if test x$jxl_lib = x; then
+                   jxl_lib=[`find_lib "libjxl.dll"`]
+                fi
                 ;;
             *)
                 jxl_lib=[`find_lib "libjxl[0-9]*.so.*"`]
@@ -484,7 +500,10 @@ if test x$enable_png = xyes; then
 
             case "$host" in
                 *-*-darwin*)
-                    png_lib=[`find_lib libpng.dylib`]
+                    png_lib=[`find_lib "libpng[0-9]*.dylib"`]
+                    if test x$png_lib = x; then
+                       png_lib=[`find_lib libpng.dylib`]
+                    fi
                     ;;
                 *-*-cygwin* | *-*-mingw*)
                     png_lib=[`find_lib "libpng*.dll"`]
@@ -526,7 +545,10 @@ if test x$enable_tif = xyes -a x$enable_imageio != xyes; then
 
         case "$host" in
             *-*-darwin*)
-                tif_lib=[`find_lib libtiff.dylib`]
+                tif_lib=[`find_lib "libtiff.[0-9]*.dylib"`]
+                if test x$tif_lib = x; then
+                   tif_lib=[`find_lib libtiff.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 tif_lib=[`find_lib "libtiff-*.dll"`]
@@ -580,8 +602,12 @@ if test x$enable_webp = xyes; then
 
         case "$host" in
             *-*-darwin*)
-                webpdemux_lib=[`find_lib libwebpdemux.dylib`]
-                webp_lib=[`find_lib libwebp.dylib`]
+                webpdemux_lib=[`find_lib "libwebpdemux.[0-9]*.dylib"`]
+                webp_lib=[`find_lib "libwebp.[0-9]*.dylib"`]
+                if test x$webp_lib = x; then
+                    webpdemux_lib=[`find_lib libwebpdemux.dylib`]
+                    webp_lib=[`find_lib libwebp.dylib`]
+                fi
                 ;;
             *-*-cygwin* | *-*-mingw*)
                 webpdemux_lib=[`find_lib "libwebpdemux-*.dll"`]

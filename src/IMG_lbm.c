@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -259,11 +259,9 @@ SDL_Surface *IMG_LoadLBM_RW( SDL_RWops *src )
           format = SDL_PIXELFORMAT_BGR24;
 #endif
        }
-       if (nbplanes == 24 || flagHAM == 1) {
-          if ((Image = SDL_CreateRGBSurfaceWithFormat(0, width, bmhd.h, 0, format)) == NULL ){
-             goto done;
-          }
-       }
+        if ((Image = SDL_CreateRGBSurfaceWithFormat(0, width, bmhd.h, 0, format)) == NULL){
+            goto done;
+        }
     }
 
     if ( bmhd.mask & 2 )               /* There is a transparent color */

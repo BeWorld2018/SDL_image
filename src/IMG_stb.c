@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2023 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2024 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -117,6 +117,9 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
     rw_callbacks.eof = IMG_LoadSTB_RW_eof;
     w = h = format = 0; /* silence warning */
     if (use_palette) {
+        /* Unused palette entries will be opaque white */
+        SDL_memset(palette_colors, 0xff, sizeof(palette_colors));
+
         pixels = stbi_load_from_callbacks_with_palette(
             &rw_callbacks,
             src,
@@ -150,6 +153,9 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
             SDL_PIXELFORMAT_INDEX8
         );
         if (surface) {
+            SDL_bool has_colorkey = SDL_FALSE;
+            int colorkey_index = -1;
+            SDL_bool has_alpha = SDL_FALSE;
             SDL_Palette *palette = surface->format->palette;
             if (palette) {
                 int i;
@@ -160,7 +166,24 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
                     palette->colors[i].g = *palette_bytes++;
                     palette->colors[i].b = *palette_bytes++;
                     palette->colors[i].a = *palette_bytes++;
+                    if (palette->colors[i].a != SDL_ALPHA_OPAQUE) {
+                        if (palette->colors[i].a == SDL_ALPHA_TRANSPARENT && !has_colorkey) {
+                            has_colorkey = SDL_TRUE;
+                            colorkey_index = i;
+                        } else {
+                            /* Partial opacity or multiple colorkeys */
+                            has_alpha = SDL_TRUE;
+                        }
+                    }
                 }
+            }
+            if (has_alpha) {
+                /* SDL doesn't support blitting with the palette alpha, so expand the palette */
+                SDL_Surface *converted = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+                SDL_FreeSurface(surface);
+                surface = converted;
+            } else if (has_colorkey) {
+                SDL_SetColorKey(surface, SDL_TRUE, colorkey_index);
             }
 
             /* FIXME: This sucks. It'd be better to allocate the surface first, then
@@ -168,7 +191,9 @@ SDL_Surface *IMG_LoadSTB_RW(SDL_RWops *src)
              * https://github.com/nothings/stb/issues/58
              * -flibit
              */
-            surface->flags &= ~SDL_PREALLOC;
+            if (surface) {
+                surface->flags &= ~SDL_PREALLOC;
+            }
         }
 
     } else if (format == STBI_grey || format == STBI_rgb || format == STBI_rgb_alpha) {
