@@ -1,16 +1,18 @@
 # Makefile to build the SDL2_image library
 
+# use -DUSE_SHAREDLIB_JPEG to use shared lib and delete -ljpeg
+
 CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE  \
 			-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
 			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_JPG=1
 		
-CC      = 	ppc-morphos-gcc-11 -noixemul
+CC      = 	ppc-morphos-gcc-9 -noixemul
 
 # TODO: -DLOAD_JXL -DLOAD_AVIF 
 
-LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux
+LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux -ljpeg 
 
-INCLUDE = -I/usr/local/include/SDL2 -I/usr/local/include
+INCLUDE = -I./include -I/usr/local/include/SDL2  -I/usr/local/include
 CFLAGS  = -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
 AR	= ppc-morphos-ar
 

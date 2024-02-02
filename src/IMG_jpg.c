@@ -49,7 +49,7 @@
 #ifdef WANT_JPEGLIB
 
 #define USE_JPEGLIB
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
 #include <proto/jfif.h>
 #else
 #include <jpeglib.h>
@@ -91,7 +91,7 @@ static struct {
     struct jpeg_error_mgr * (*jpeg_std_error) (struct jpeg_error_mgr * err);
 } lib;
 
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
 const char *const my_std_message_table[] = {
 	NULL
 };
@@ -144,7 +144,7 @@ static struct jpeg_error_mgr *my_std_error(struct jpeg_error_mgr *err)
     lib.FUNC = (SIG) SDL_LoadFunction(lib.handle, #FUNC); \
     if (lib.FUNC == NULL) { SDL_UnloadObject(lib.handle); return -1; }
 #else
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
 #define FUNCTION_LOADER(FUNC, SIG, REP) \
     lib.FUNC = REP;
 #else
@@ -162,7 +162,7 @@ int IMG_InitJPG()
             return -1;
         }
 #endif
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
 		FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 232))
         FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize), *(void**)((long)(JFIFBase) - 34))
         FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 46))
