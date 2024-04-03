@@ -4,8 +4,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
-set(MINOR_VERSION 9)
-set(MICRO_VERSION 0)
+set(MINOR_VERSION 8)
+set(MICRO_VERSION 2)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -344,8 +344,6 @@ endif()
 if(SDL2IMAGE_ZLIB)
     if(SDL2IMAGE_ZLIB_VENDORED)
         message(STATUS "${PROJECT_NAME}: Using vendored zlib")
-        # disable build of zlib example programs:
-        set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "zlib examples" FORCE)
         sdl_check_project_in_subfolder(external/zlib zlib SDL2IMAGE_VENDORED)
         add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
         # PNG_BUILD_ZLIB variable is used by vendored libpng
@@ -357,9 +355,6 @@ if(SDL2IMAGE_ZLIB)
             set(ZLIB_LIBRARY zlib)
         else()
             set(ZLIB_LIBRARY zlibstatic)
-        endif()
-        if(NOT TARGET ZLIB::ZLIB)
-            add_library(ZLIB::ZLIB ALIAS ${ZLIB_LIBRARY})
         endif()
         # ZLIB_INCLUDE_DIRS variable is used by vendored libpng
         set(ZLIB_INCLUDE_DIRS "${ZLIB_INCLUDE_DIR}")
@@ -651,6 +646,7 @@ if(SDL2IMAGE_TIF)
         set(BUILD_SHARED_LIBS ${SDL2IMAGE_TIF_SHARED})
         add_subdirectory(external/libtiff EXCLUDE_FROM_ALL)
         add_library(TIFF::TIFF ALIAS tiff)
+        set(SDL2IMAGE_TIF_TARGET "TIFF::TIFF")
         list(APPEND INSTALL_EXTRA_TARGETS tiff)
         set_target_properties(tiff PROPERTIES EXPORT_NAME external_libtiff)
         add_library(SDL2_image::external_libtiff ALIAS tiff)
@@ -660,22 +656,29 @@ if(SDL2IMAGE_TIF)
     else()
         message(STATUS "${PROJECT_NAME}: Using system libtiff")
         find_package(TIFF REQUIRED)
+        if(TARGET TIFF::tiff)
+            # Introduced in CMake 3.28
+            # TIFF::TIFF still exists, but it is an INTERFACE library linking to TIFF::tiff (no ALIAS library)
+            set(SDL2IMAGE_TIF_TARGET "TIFF::tiff")
+        else()
+            set(SDL2IMAGE_TIF_TARGET "TIFF::TIFF")
+        endif()
         list(APPEND PC_REQUIRES libtiff-4)
     endif()
     if(SDL2IMAGE_TIF_SHARED)
         target_include_directories(SDL2_image PRIVATE
-            $<TARGET_PROPERTY:TIFF::TIFF,INCLUDE_DIRECTORIES>
-            $<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>
-            $<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
+            $<TARGET_PROPERTY:${SDL2IMAGE_TIF_TARGET},INCLUDE_DIRECTORIES>
+            $<TARGET_PROPERTY:${SDL2IMAGE_TIF_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
+            $<TARGET_PROPERTY:${SDL2IMAGE_TIF_TARGET},INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
         )
-        target_get_dynamic_library(dynamic_tif TIFF::TIFF)
+        target_get_dynamic_library(dynamic_tif ${SDL2IMAGE_TIF_TARGET})
         message(STATUS "Dynamic libtiff: ${dynamic_tif}")
         target_compile_definitions(SDL2_image PRIVATE "LOAD_TIF_DYNAMIC=\"${dynamic_tif}\"")
         if(SDL2IMAGE_TIF_VENDORED)
-            add_dependencies(SDL2_image TIFF::TIFF)
+            add_dependencies(SDL2_image ${SDL2IMAGE_TIF_TARGET})
         endif()
     else()
-        target_link_libraries(SDL2_image PRIVATE TIFF::TIFF)
+        target_link_libraries(SDL2_image PRIVATE ${SDL2IMAGE_TIF_TARGET})
     endif()
 endif()
 
