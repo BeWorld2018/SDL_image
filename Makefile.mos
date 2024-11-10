@@ -2,7 +2,7 @@
 
 # use -DUSE_SHAREDLIB_JPEG to use shared lib and delete -ljpeg
 
-CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D__MORPHOS_SHAREDLIBS -D_NO_PPCINLINE  \
+CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D_NO_PPCINLINE  \
 			-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
 			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_JPG=1
 		
@@ -10,10 +10,10 @@ CC      = 	ppc-morphos-gcc-9 -noixemul
 
 # TODO: -DLOAD_JXL -DLOAD_AVIF 
 
-LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux -ljpeg 
+LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16
 
 INCLUDE = -I./include -I/usr/local/include/SDL2  -I/usr/local/include
-CFLAGS  = -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
+CFLAGS  = -mcpu=750 -mtune=7450 -O3 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
 AR	= ppc-morphos-ar
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
@@ -98,18 +98,18 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/usr/local/lib -lSDL2 $(LIBS_EXT) -lm
+	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/usr/local/lib -lSDL2 -lGL $(LIBS_EXT) -lm
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
 testimage: test/main.c
-	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2
+	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2 -lGL
 
 showanim: examples/showanim.c
-	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2 -lGL
 
 showimage: examples/showimage.c
-	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2
+	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2 -lGL
 
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s

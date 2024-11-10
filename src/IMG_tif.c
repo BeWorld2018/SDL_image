@@ -27,6 +27,10 @@
 
 #ifdef LOAD_TIF
 
+#ifdef __MORPHOS__
+#define __MORPHOS_SHAREDLIBS
+#endif
+
 #ifdef __MORPHOS_SHAREDLIBS
 #include <proto/tiff.h>
 #else

@@ -53,7 +53,11 @@
 #ifdef macintosh
 #define MACOS
 #endif
+#if !defined(__MORPHOS__) || defined( __MORPHOS_SHAREDLIBS)
 #include <png.h>
+#else
+#include <png16.h>
+#endif
 
 /* Check for the older version of libpng */
 #if (PNG_LIBPNG_VER_MAJOR == 1)
@@ -232,49 +236,38 @@ static void png_read_data(png_structp ctx, png_bytep area, png_size_t size)
     src = (SDL_RWops *)lib.png_get_io_ptr(ctx);
     SDL_RWread(src, area, size, 1);
 }
-SDL_Surface *IMG_LoadPNG_RW(SDL_RWops *src)
-{
-    Sint64 start;
+
+struct loadpng_vars {
     const char *error;
-    SDL_Surface *volatile surface;
+    SDL_Surface *surface;
     png_structp png_ptr;
     png_infop info_ptr;
+    png_bytep *row_pointers;
+};
+
+static void LIBPNG_LoadPNG_RW(SDL_RWops *src, struct loadpng_vars *vars)
+{
     png_uint_32 width, height;
     int bit_depth, color_type, interlace_type, num_channels;
     Uint32 format;
     SDL_Palette *palette;
-    png_bytep *volatile row_pointers;
     int row, i;
     int ckey;
     png_color_16 *transv;
 
-    if ( !src ) {
-        /* The error message has been set in SDL_RWFromFile */
-        return NULL;
-    }
-    start = SDL_RWtell(src);
-
-    if ( (IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0 ) {
-        return NULL;
-    }
-
-    /* Initialize the data we will clean up when we're done */
-    error = NULL;
-    png_ptr = NULL; info_ptr = NULL; row_pointers = NULL; surface = NULL;
-
     /* Create the PNG loading context structure */
-    png_ptr = lib.png_create_read_struct(PNG_LIBPNG_VER_STRING,
+    vars->png_ptr = lib.png_create_read_struct(PNG_LIBPNG_VER_STRING,
                       NULL,NULL,NULL);
-    if (png_ptr == NULL){
-        error = "Couldn't allocate memory for PNG file or incompatible PNG dll";
-        goto done;
+    if (vars->png_ptr == NULL) {
+        vars->error = "Couldn't allocate memory for PNG file or incompatible PNG dll";
+        return;
     }
 
      /* Allocate/initialize the memory for image information.  REQUIRED. */
-    info_ptr = lib.png_create_info_struct(png_ptr);
-    if (info_ptr == NULL) {
-        error = "Couldn't create image information for PNG file";
-        goto done;
+    vars->info_ptr = lib.png_create_info_struct(vars->png_ptr);
+    if (vars->info_ptr == NULL) {
+        vars->error = "Couldn't create image information for PNG file";
+        return;
     }
 
     /* Set error handling if you are using setjmp/longjmp method (this is
@@ -289,7 +282,7 @@ SDL_Surface *IMG_LoadPNG_RW(SDL_RWops *src)
 #ifndef LIBPNG_VERSION_12
     if ( setjmp(*lib.png_set_longjmp_fn(png_ptr, longjmp, sizeof (jmp_buf))) )
 #else
-#if __MORPHOS__ &&  _JBLEN != 59
+#if __MORPHOS__ &&  _JBLEN != 59 && __MORPHOS_SHAREDLIBS
 	  if (setjmp59(png_ptr->jmpbuf59))
 #else
    if ( setjmp(png_ptr->jmpbuf) )
@@ -604,7 +597,7 @@ static int IMG_SavePNG_RW_libpng(SDL_Surface *surface, SDL_RWops *dst)
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(png_ptr, longjmp, sizeof (jmp_buf))))
 #else
-#if __MORPHOS__ &&  _JBLEN != 59
+#if __MORPHOS__ &&  _JBLEN != 59 && __MORPHOS_SHAREDLIBS
 	if (setjmp59(png_ptr->jmpbuf59))
 #else
     if (setjmp(png_ptr->jmpbuf))
