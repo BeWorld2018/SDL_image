@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
 set(MINOR_VERSION 8)
-set(MICRO_VERSION 2)
+set(MICRO_VERSION 3)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -320,7 +320,9 @@ endif()
 
 if(APPLE)
     if(SDL2IMAGE_BACKEND_IMAGEIO)
-        target_link_libraries(SDL2_image PRIVATE -Wl,-framework,ApplicationServices)
+        if(CMAKE_SYSTEM_NAME MATCHES ".*(Darwin|MacOS).*")
+            target_link_libraries(SDL2_image PRIVATE -Wl,-framework,ApplicationServices)
+        endif()
         target_link_libraries(SDL2_image PRIVATE objc)
         target_sources(SDL2_image PRIVATE
             src/IMG_ImageIO.m
