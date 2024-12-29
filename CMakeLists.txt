@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 2)
 set(MINOR_VERSION 8)
-set(MICRO_VERSION 3)
+set(MICRO_VERSION 4)
 set(SDL_REQUIRED_VERSION 2.0.9)
 
 include(PrivateSdlFunctions)
@@ -701,7 +701,7 @@ if(SDL2IMAGE_WEBP)
     else()
         message(STATUS "${PROJECT_NAME}: Using system libwebp")
         find_package(webp REQUIRED)
-        list(APPEND PC_REQUIRES libwebp)
+        list(APPEND PC_REQUIRES libwebp libwebpdemux)
     endif()
     if(SDL2IMAGE_WEBP_SHARED)
         target_include_directories(SDL2_image PRIVATE
