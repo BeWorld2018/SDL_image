@@ -1,0 +1,104 @@
+# Makefile to build the libSDL3_image.a
+#
+# install:
+# you need libpng libwepb libjpeg libtiff
+# make -f makefile.mos				// create libSDL3_image.a (with libpng16, libjpeg, libtiff, libwebp, libwebpdemux) and libSDL3_image_light.a 
+# make -f makefile.mos install		// install SDL3_image to your SDK /gg/usr/local/
+#
+
+CDEFS   = 	-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
+			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI \
+			-DSDL_IMAGE_SAVE_JPG=1 -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_AVIF=1
+# TODO: -DLOAD_JXL -DLOAD_AVIF 
+# -DUSE_STBIMAGE
+		
+CC      = 	ppc-morphos-gcc-11 
+
+LIBS_EXT = -L/gg/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16 -ltiff
+
+INCLUDE = -I./include -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include
+CFLAGS  =  -O3 -noixemul $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
+AR		= ppc-morphos-ar
+RANLIB 	= ppc-morphos-ranlib
+
+SDL3_LDFLAGS = -L/gg/usr/local/lib -lSDL3_test -lSDL3 -lGL -lm -lpthread
+
+ECHE = echo -e
+BOLD = \033[1m
+NRML = \033[22m
+
+COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
+LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
+STRIPPING = @$(ECHE) "stripping $(BOLD)$@$(NRML)..."
+ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
+HEADERING = @$(ECHE) "creating headers files $(BOLD)$@$(NRML)..."
+
+TARGET  = libSDL3_image_light.a
+
+SOURCES = \
+	src/IMG.c		\
+	src/IMG_avif.c	\
+	src/IMG_bmp.c	\
+	src/IMG_gif.c	\
+	src/IMG_jpg.c	\
+	src/IMG_jxl.c	\
+	src/IMG_lbm.c	\
+	src/IMG_pcx.c	\
+	src/IMG_png.c	\
+	src/IMG_pnm.c	\
+	src/IMG_qoi.c	\
+	src/IMG_stb.c	\
+	src/IMG_svg.c	\
+	src/IMG_tga.c	\
+	src/IMG_tif.c	\
+	src/IMG_xcf.c	\
+	src/IMG_xpm.c	\
+	src/IMG_xv.c	\
+	src/IMG_webp.c	\
+	src/IMG_WIC.c 	\
+	src/IMG_xxx.c
+
+OBJECTS = $(shell echo $(SOURCES) | sed -e 's,\.c,\.o,g')
+
+all: $(TARGET) withall testimage showanim showimage
+
+# install SDL3_image to your SDK: /gg/usr/local/
+install:
+	mkdir -p /gg/usr/local/include/SDL3
+	mkdir -p /gg/usr/local/lib
+	cp -r include/SDL3_image /gg/usr/local/include/
+	cp libSDL3_image_light.a /gg/usr/local/lib/libSDL3_image_light.a
+	cp libSDL3_image.a /gg/usr/local/lib/libSDL3_image.a
+
+# build a new SDL3_image (full) with all external lib include
+withall:
+	mkdir -p external-obj && \
+	cd external-obj && \
+	$(AR) x /gg/usr/local/lib/libpng16.a && \
+	$(AR) x /gg/usr/local/lib/libwebp.a && \
+	$(AR) x /gg/usr/local/lib/libwebpdemux.a && \
+	$(AR) x /gg/usr/local/lib/libjpeg.a && \
+	$(AR) x /gg/usr/local/lib/libtiff.a && \
+	$(AR) x ../libSDL3_image_light.a && \
+	$(AR) rcs ../libSDL3_image.a *.o  && \
+	$(RANLIB) ../libSDL3_image.a  && \
+	rm -rf *.o ../external-obj # Clean up object files
+
+$(TARGET): $(OBJECTS)
+	$(ARCHIVING)
+	@$(AR) crvs $@ $^
+
+testimage: test/main.c
+	$(CC) -noixemul -O3 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -L. -lSDL3_image_full $(SDL3_LDFLAGS)
+
+showanim: examples/showanim.c
+	$(CC) -noixemul -O3 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -L. -lSDL3_image_full $(SDL3_LDFLAGS)
+
+showimage: examples/showimage.c
+	$(CC) -noixemul -O3 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -L. -lSDL3_image_full $(SDL3_LDFLAGS)
+
+clean:
+	rm -f *.a $(OBJECTS) $(COREOBJECTS) *.s showimage showanim testimage
+
+dump:
+	ppc-morphos-objdump --disassemble-all --reloc showimage >showimage.s

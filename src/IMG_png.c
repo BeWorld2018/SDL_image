@@ -53,7 +53,12 @@
 #ifdef macintosh
 #define MACOS
 #endif
+#ifdef __MORPHOS__
+// use png16.h (my SDK)
+#include <png16.h>
+#else
 #include <png.h>
+#endif
 
 /* Check for the older version of libpng */
 #if (PNG_LIBPNG_VER_MAJOR == 1)
