@@ -97,7 +97,7 @@ SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
     int i;
     int bpp;
     int lstep;
-    Uint32 pixel;
+    Uint32 pixelvalue;
     int count, rep;
 
     if ( !src ) {
@@ -283,7 +283,7 @@ SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
                         n = w - x;
                     rep -= n;
                     while (n--) {
-                        SDL_memcpy(dst + x * bpp, &pixel, bpp);
+                        SDL_memcpy(dst + x * bpp, &pixelvalue, bpp);
                         x++;
                     }
                     if (x == w)
@@ -295,7 +295,7 @@ SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
                     goto error;
                 }
                 if (c & 0x80) {
-                    if (SDL_ReadIO(src, &pixel, bpp) != (size_t)bpp) {
+                    if (SDL_ReadIO(src, &pixelvalue, bpp) != (size_t)bpp) {
                         error = "Error reading TGA data";
                         goto error;
                     }
@@ -336,14 +336,12 @@ error:
 }
 
 #else
-#if defined(_MSC_VER) && _MSC_VER >= 1300
-#pragma warning(disable : 4100) /* warning C4100: 'op' : unreferenced formal parameter */
-#endif
 
 /* dummy TGA load routine */
 SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
 {
-    return(NULL);
+    (void)src;
+    return NULL;
 }
 
 #endif /* LOAD_TGA */
