@@ -34,7 +34,11 @@
 #include "IMG_anim_decoder.h"
 
 #ifdef SDL_IMAGE_LIBPNG
+#ifdef __MORPHOS__
+#include <png16.h>
+#else
 #include <png.h>
+#endif
 
 #ifndef PNG_DISPOSE_OP_NONE
 #define PNG_DISPOSE_OP_NONE 0
