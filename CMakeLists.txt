@@ -10,7 +10,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 set(MAJOR_VERSION 3)
 set(MINOR_VERSION 3)
 set(MICRO_VERSION 0)
-set(SDL_REQUIRED_VERSION 3.2.6)
+set(SDL_REQUIRED_VERSION 3.3.0)
 
 project(SDL3_image
     LANGUAGES C
@@ -110,6 +110,7 @@ option(SDLIMAGE_BACKEND_STB "Use stb_image for loading JPEG and PNG files" ON)
 cmake_dependent_option(SDLIMAGE_BACKEND_WIC "Add WIC backend (Windows Imaging Component)" OFF WIN32 OFF)
 cmake_dependent_option(SDLIMAGE_BACKEND_IMAGEIO "Use native Mac OS X frameworks for loading images" ON APPLE OFF)
 
+option(SDLIMAGE_ANI "Support loading ANI animations" ON)
 option(SDLIMAGE_AVIF "Support loading AVIF images" ON)
 option(SDLIMAGE_BMP "Support loading BMP images" ON)
 option(SDLIMAGE_GIF "Support loading GIF images" ON)
@@ -128,9 +129,14 @@ option(SDLIMAGE_XCF "Support loading XCF images" ON)
 option(SDLIMAGE_XPM "Support loading XPM images" ON)
 option(SDLIMAGE_XV "Support loading XV images" ON)
 
+cmake_dependent_option(SDLIMAGE_ANI_SAVE "Add ANI save support" ON SDLIMAGE_ANI OFF)
 cmake_dependent_option(SDLIMAGE_AVIF_SAVE "Add AVIF save support" ON SDLIMAGE_AVIF OFF)
+cmake_dependent_option(SDLIMAGE_BMP_SAVE "Add BMP save support" ON SDLIMAGE_BMP OFF)
+cmake_dependent_option(SDLIMAGE_GIF_SAVE "Add GIF save support" ON SDLIMAGE_GIF OFF)
 cmake_dependent_option(SDLIMAGE_JPG_SAVE "Add JPEG save support" ON SDLIMAGE_JPG OFF)
 cmake_dependent_option(SDLIMAGE_PNG_SAVE "Add PNG save support" ON SDLIMAGE_PNG OFF)
+cmake_dependent_option(SDLIMAGE_TGA_SAVE "Add TGA save support" ON SDLIMAGE_TGA OFF)
+cmake_dependent_option(SDLIMAGE_WEBP_SAVE "Add WEBP save support" ON SDLIMAGE_WEBP OFF)
 
 set(LIBAVIF_MINIMUM_VERSION "1.0")
 if(SDLIMAGE_VENDORED AND SDLIMAGE_AVIF)
@@ -256,6 +262,9 @@ set(BUILD_SHARED_LIBS ${SDLIMAGE_BUILD_SHARED_LIBS})
 add_library(${sdl3_image_target_name}
     src/IMG.c
     src/IMG_WIC.c
+    src/IMG_ani.c
+    src/IMG_anim_encoder.c
+    src/IMG_anim_decoder.c
     src/IMG_avif.c
     src/IMG_bmp.c
     src/IMG_gif.c
@@ -274,10 +283,17 @@ add_library(${sdl3_image_target_name}
     src/IMG_xcf.c
     src/IMG_xpm.c
     src/IMG_xv.c
+    src/IMG_libpng.c
+    src/xmlman.c
 )
 add_library(SDL3_image::${sdl3_image_target_name} ALIAS ${sdl3_image_target_name})
 if(NOT TARGET SDL3_image::SDL3_image)
     add_library(SDL3_image::SDL3_image ALIAS ${sdl3_image_target_name})
+endif()
+if("c_std_99" IN_LIST CMAKE_C_COMPILE_FEATURES)
+    target_compile_features(${sdl3_image_target_name} PRIVATE c_std_99)
+else()
+    message(WARNING "target_compile_features does not know c_std_99 for C compiler")
 endif()
 target_include_directories(${sdl3_image_target_name}
     PUBLIC
@@ -290,6 +306,8 @@ target_compile_definitions(${sdl3_image_target_name} PRIVATE
     SDL_BUILD_MINOR_VERSION=${MINOR_VERSION}
     SDL_BUILD_MICRO_VERSION=${MICRO_VERSION}
 )
+# Make sure SDL3's include directory comes first
+target_include_directories(${sdl3_image_target_name} PRIVATE $<TARGET_PROPERTY:SDL3::Headers,INTERFACE_INCLUDE_DIRECTORIES>)
 target_link_libraries(${sdl3_image_target_name} PUBLIC SDL3::Headers)
 if(SDLIMAGE_BUILD_SHARED_LIBS)
     target_link_libraries(${sdl3_image_target_name} PRIVATE SDL3::SDL3-shared)
@@ -318,12 +336,15 @@ if(NOT ANDROID)
         VERSION "${SO_VERSION}"
     )
     if(APPLE)
-        cmake_minimum_required(VERSION 3.17...3.28)
         set_target_properties(${sdl3_image_target_name} PROPERTIES
             MACHO_COMPATIBILITY_VERSION "${DYLIB_COMPAT_VERSION}"
             MACHO_CURRENT_VERSION "${DYLIB_CURRENT_VERSION}"
         )
         sdl_no_deprecated_errors(${sdl3_image_target_name})
+        set_property(TARGET ${sdl3_image_target_name} APPEND PROPERTY LINK_DEPENDS
+            "${PROJECT_SOURCE_DIR}/src/SDL_image.exports")
+        target_link_options(${sdl3_image_target_name} PRIVATE
+            "SHELL:-Wl,-exported_symbols_list,${PROJECT_SOURCE_DIR}/src/SDL_image.exports")
     endif()
 endif()
 if(SDLIMAGE_BUILD_SHARED_LIBS)
@@ -556,7 +577,7 @@ if(SDLIMAGE_AVIF)
     if(SDLIMAGE_AVIF_ENABLED)
         target_compile_definitions(${sdl3_image_target_name} PRIVATE
             LOAD_AVIF
-            SDL_IMAGE_SAVE_AVIF=$<BOOL:${SDLIMAGE_AVIF_SAVE}>
+            SAVE_AVIF=$<BOOL:${SDLIMAGE_AVIF_SAVE}>
         )
         if(SDLIMAGE_AVIF_SHARED)
             if(NOT DEFINED SDLIMAGE_DYNAMIC_AVIF)
@@ -581,18 +602,49 @@ if(SDLIMAGE_AVIF)
     endif()
 endif()
 
+list(APPEND SDLIMAGE_BACKENDS ANI)
+set(SDLIMAGE_ANI_ENABLED FALSE)
+if(SDLIMAGE_ANI)
+    set(SDLIMAGE_ANI_ENABLED TRUE)
+    if(SDLIMAGE_ANI_ENABLED)
+        target_compile_definitions(${sdl3_image_target_name} PRIVATE
+            LOAD_ANI
+            SAVE_ANI=$<BOOL:${SDLIMAGE_ANI_SAVE}>
+        )
+    else()
+        # Variable is used by test suite
+        set(SDLIMAGE_ANI_SAVE OFF)
+    endif()
+endif()
+
 list(APPEND SDLIMAGE_BACKENDS BMP)
 set(SDLIMAGE_BMP_ENABLED FALSE)
 if(SDLIMAGE_BMP)
     set(SDLIMAGE_BMP_ENABLED TRUE)
-    target_compile_definitions(${sdl3_image_target_name} PRIVATE LOAD_BMP)
+    if(SDLIMAGE_BMP_ENABLED)
+        target_compile_definitions(${sdl3_image_target_name} PRIVATE
+            LOAD_BMP
+            SAVE_BMP=$<BOOL:${SDLIMAGE_BMP_SAVE}>
+        )
+    else()
+        # Variable is used by test suite
+        set(SDLIMAGE_BMP_SAVE OFF)
+    endif()
 endif()
 
 list(APPEND SDLIMAGE_BACKENDS GIF)
 set(SDLIMAGE_GIF_ENABLED FALSE)
 if(SDLIMAGE_GIF)
     set(SDLIMAGE_GIF_ENABLED TRUE)
-    target_compile_definitions(${sdl3_image_target_name} PRIVATE LOAD_GIF)
+    if(SDLIMAGE_GIF_ENABLED)
+        target_compile_definitions(${sdl3_image_target_name} PRIVATE
+            LOAD_GIF
+            SAVE_GIF=$<BOOL:${SDLIMAGE_GIF_SAVE}>
+        )
+    else()
+        # Variable is used by test suite
+        set(SDLIMAGE_GIF_SAVE OFF)
+    endif()
 endif()
 
 list(APPEND SDLIMAGE_BACKENDS JPG)
@@ -654,7 +706,7 @@ if(SDLIMAGE_JPG)
     if(SDLIMAGE_JPG_ENABLED)
         target_compile_definitions(${sdl3_image_target_name} PRIVATE
             LOAD_JPG
-            SDL_IMAGE_SAVE_JPG=$<BOOL:${SDLIMAGE_JPG_SAVE}>
+            SAVE_JPG=$<BOOL:${SDLIMAGE_JPG_SAVE}>
         )
     else()
         # Variable is used by test suite
@@ -828,7 +880,7 @@ if(SDLIMAGE_PNG)
                 endif()
                 target_get_dynamic_library(SDLIMAGE_DYNAMIC_PNG PNG::PNG)
                 message(STATUS "Dynamic libpng: ${SDLIMAGE_DYNAMIC_PNG}")
-                target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_PNG_DYNAMIC=\"${SDLIMAGE_DYNAMIC_PNG}\"")
+                target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_LIBPNG_DYNAMIC=\"${SDLIMAGE_DYNAMIC_PNG}\"")
             else()
                 target_link_libraries(${sdl3_image_target_name} PRIVATE PNG::PNG)
             endif()
@@ -837,8 +889,13 @@ if(SDLIMAGE_PNG)
     if(SDLIMAGE_PNG_ENABLED)
         target_compile_definitions(${sdl3_image_target_name} PRIVATE
             LOAD_PNG
-            SDL_IMAGE_SAVE_PNG=$<BOOL:${SDLIMAGE_PNG_SAVE}>
+            SAVE_PNG=$<BOOL:${SDLIMAGE_PNG_SAVE}>
         )
+        if(NOT(SDLIMAGE_BACKEND_STB OR SDLIMAGE_BACKEND_WIC OR SDLIMAGE_BACKEND_IMAGEIO))
+            target_compile_definitions(${sdl3_image_target_name} PRIVATE
+                SDL_IMAGE_LIBPNG
+            )
+        endif()
     else()
         # Variable is used by test suite
         set(SDLIMAGE_PNG_SAVE OFF)
@@ -870,7 +927,15 @@ list(APPEND SDLIMAGE_BACKENDS TGA)
 set(SDLIMAGE_TGA_ENABLED FALSE)
 if(SDLIMAGE_TGA)
     set(SDLIMAGE_TGA_ENABLED TRUE)
-    target_compile_definitions(${sdl3_image_target_name} PRIVATE LOAD_TGA)
+    if(SDLIMAGE_TGA_ENABLED)
+      target_compile_definitions(${sdl3_image_target_name} PRIVATE
+          LOAD_TGA
+          SAVE_TGA=$<BOOL:${SDLIMAGE_TGA_SAVE}>
+      )
+    else()
+      # Variable is used by test suite
+      set(SDLIMAGE_TGA_SAVE OFF)
+    endif()
 endif()
 
 list(APPEND SDLIMAGE_BACKENDS TIF)
@@ -882,8 +947,12 @@ if(SDLIMAGE_TIF)
         if(SDLIMAGE_TIF_VENDORED)
             set(SDLIMAGE_TIF_ENABLED TRUE)
             message(STATUS "${PROJECT_NAME}: Using vendored libtiff")
+            # tiff-cxx variable is used by vendored libtiff
+            set(tiff-cxx OFF CACHE BOOL "libtiff: C++ API" FORCE)
             # tiff-tests variable is used by vendored libtiff
             set(tiff-tests OFF CACHE BOOL "libtiff: tests" FORCE)
+            # tiff-opengl variable is used by vendored libtiff
+            set(tiff-opengl OFF CACHE BOOL "libtiff: OpenGL option" FORCE)
             # jpeg variable is used by vendored libtiff
             set(jpeg OFF CACHE BOOL "libtiff: jpeg option" FORCE)
             # libdeflate variable is used by vendored libtiff
@@ -894,6 +963,8 @@ if(SDLIMAGE_TIF)
             set(zlib OFF CACHE BOOL "libtiff: find zlib using find_package" FORCE)
             # ZLIB_FOUND is used by vendored libtiff
             set(ZLIB_FOUND "")
+            # lerc variable is used by vendored libtiff
+            set(lerc OFF CACHE BOOL "libtiff: lerc option" FORCE)
             # lzma variable is used by vendored libtiff
             set(lzma OFF CACHE BOOL "libtiff: lzma option" FORCE)
             # webp variable is used by vendored libtiff
@@ -978,17 +1049,19 @@ if(SDLIMAGE_WEBP)
         target_include_directories(${sdl3_image_target_name} PRIVATE external/libwebp/src)
         add_library(WebP::webp ALIAS webp)
         add_library(WebP::webpdemux ALIAS webpdemux)
+        add_library(WebP::libwebpmux ALIAS libwebpmux)
         if(SDLIMAGE_WEBP_SHARED OR NOT SDLIMAGE_BUILD_SHARED_LIBS)
-            list(APPEND INSTALL_EXTRA_TARGETS webp webpdemux)
+            list(APPEND INSTALL_EXTRA_TARGETS webp webpdemux libwebpmux)
             if(NOT SDLIMAGE_WEBP_SHARED)
                 list(APPEND INSTALL_EXTRA_TARGETS sharpyuv)
             endif()
         endif()
         set_target_properties(webp PROPERTIES EXPORT_NAME "external_libwebp")
         set_target_properties(webpdemux PROPERTIES EXPORT_NAME "external_webpdemux")
+        set_target_properties(libwebpmux PROPERTIES EXPORT_NAME "external_libwebpmux")
         set_target_properties(sharpyuv PROPERTIES EXPORT_NAME "external_sharpyuv")
         add_library(SDL3_image::external_libwebp ALIAS webp)
-    elseif(SDLIMAGE_WEBP_SHARED AND DEFINED SDLIMAGE_DYNAMIC_WEBP AND EXISTS "${SDLIMAGE_DYNAMIC_WEBP}" AND DEFINED SDLIMAGE_DYNAMIC_WEBPDEMUX AND EXISTS "${SDLIMAGE_DYNAMIC_WEBPDEMUX}")
+    elseif(SDLIMAGE_WEBP_SHARED AND DEFINED SDLIMAGE_DYNAMIC_WEBP AND EXISTS "${SDLIMAGE_DYNAMIC_WEBP}" AND DEFINED SDLIMAGE_DYNAMIC_WEBPDEMUX AND EXISTS "${SDLIMAGE_DYNAMIC_WEBPDEMUX}" AND DEFINED SDLIMAGE_DYNAMIC_WEBPMUX AND EXISTS "${SDLIMAGE_DYNAMIC_WEBPMUX}")
         message(STATUS "${PROJECT_NAME}: Using libwebp from CMake variable")
         set(SDLIMAGE_WEBP_ENABLED TRUE)
     else()
@@ -997,7 +1070,7 @@ if(SDLIMAGE_WEBP)
             message(STATUS "${PROJECT_NAME}: Using system libwebp")
             set(SDLIMAGE_WEBP_ENABLED TRUE)
             if(NOT SDLIMAGE_WEBP_SHARED)
-              list(APPEND PC_REQUIRES libwebp libwebpdemux)
+              list(APPEND PC_REQUIRES libwebp libwebpdemux libwebpmux)
               list(APPEND INSTALL_EXTRA_CMAKE_MODULES cmake/Findwebp.cmake)
             endif()
         else()
@@ -1005,9 +1078,12 @@ if(SDLIMAGE_WEBP)
         endif()
     endif()
     if(SDLIMAGE_WEBP_ENABLED)
-        target_compile_definitions(${sdl3_image_target_name} PRIVATE LOAD_WEBP)
+        target_compile_definitions(${sdl3_image_target_name} PRIVATE
+            LOAD_WEBP
+            SAVE_WEBP=$<BOOL:${SDLIMAGE_WEBP_SAVE}>
+        )
         if(SDLIMAGE_WEBP_SHARED)
-           if(NOT DEFINED SDLIMAGE_DYNAMIC_WEBP AND NOT DEFINED SDLIMAGE_DYNAMIC_WEBPDEMUX)
+           if(NOT DEFINED SDLIMAGE_DYNAMIC_WEBP AND NOT DEFINED SDLIMAGE_DYNAMIC_WEBPDEMUX AND NOT DEFINED SDLIMAGE_DYNAMIC_WEBPMUX)
                 target_include_directories(${sdl3_image_target_name} PRIVATE
                     $<TARGET_PROPERTY:WebP::webp,INCLUDE_DIRECTORIES>
                     $<TARGET_PROPERTY:WebP::webp,INTERFACE_INCLUDE_DIRECTORIES>
@@ -1015,20 +1091,29 @@ if(SDLIMAGE_WEBP)
                     $<TARGET_PROPERTY:WebP::webpdemux,INCLUDE_DIRECTORIES>
                     $<TARGET_PROPERTY:WebP::webpdemux,INTERFACE_INCLUDE_DIRECTORIES>
                     $<TARGET_PROPERTY:WebP::webpdemux,INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:WebP::libwebpmux,INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:WebP::libwebpmux,INTERFACE_INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:WebP::libwebpmux,INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
                 )
                 if(SDLIMAGE_WEBP_VENDORED)
-                    add_dependencies(${sdl3_image_target_name} WebP::webp WebP::webpdemux)
+                    add_dependencies(${sdl3_image_target_name} WebP::webp WebP::webpdemux WebP::libwebpmux)
                 endif()
             endif()
             target_get_dynamic_library(SDLIMAGE_DYNAMIC_WEBPDEMUX WebP::webpdemux)
             message(STATUS "Dynamic libwebpdemux: ${SDLIMAGE_DYNAMIC_WEBPDEMUX}")
             target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_WEBPDEMUX_DYNAMIC=\"${SDLIMAGE_DYNAMIC_WEBPDEMUX}\"")
+            target_get_dynamic_library(SDLIMAGE_DYNAMIC_WEBPMUX WebP::libwebpmux)
+            message(STATUS "Dynamic libwebpmux: ${SDLIMAGE_DYNAMIC_WEBPMUX}")
+            target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_WEBPMUX_DYNAMIC=\"${SDLIMAGE_DYNAMIC_WEBPMUX}\"")
             target_get_dynamic_library(SDLIMAGE_DYNAMIC_WEBP WebP::webp)
             message(STATUS "Dynamic libwebp: ${SDLIMAGE_DYNAMIC_WEBP}")
             target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_WEBP_DYNAMIC=\"${SDLIMAGE_DYNAMIC_WEBP}\"")
         else()
-            target_link_libraries(${sdl3_image_target_name} PRIVATE WebP::webp WebP::webpdemux)
+            target_link_libraries(${sdl3_image_target_name} PRIVATE WebP::webp WebP::webpdemux WebP::libwebpmux)
         endif()
+    else()
+      # Variable is used by test suite
+      set(SDLIMAGE_WEBP_SAVE OFF)
     endif()
 endif()
 
@@ -1227,6 +1312,7 @@ if(SDLIMAGE_SAMPLES)
     endfunction()
     add_sdl_image_example_executable(showanim examples/showanim.c)
     add_sdl_image_example_executable(showimage examples/showimage.c)
+    add_sdl_image_example_executable(showclipboard examples/showclipboard.c)
 endif()
 
 if(SDLIMAGE_TESTS)

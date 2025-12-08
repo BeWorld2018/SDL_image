@@ -61,6 +61,21 @@
     <ClCompile Include="..\src\IMG_stb.c">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\IMG_libpng.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\IMG_anim_encoder.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\IMG_anim_decoder.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xmlman.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\IMG_ani.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Sources">
@@ -80,6 +95,27 @@
     <ClInclude Include="..\include\SDL3_image\SDL_image.h">
       <Filter>Public Headers</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\IMG_libpng.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IMG_gif.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IMG_avif.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IMG_anim_encoder.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IMG_anim_decoder.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xmlman.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IMG_ani.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\version.rc">
@@ -87,6 +123,18 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="external\optional\x64\libpng16-16.dll">
+      <Filter>x64</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x64\LICENSE.libpng.txt">
+      <Filter>x64</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\libpng16-16.dll">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\LICENSE.libpng.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
     <CustomBuild Include="external\optional\x64\libavif-16.dll">
       <Filter>x64</Filter>
     </CustomBuild>
@@ -133,6 +181,12 @@
       <Filter>x64</Filter>
     </CustomBuild>
     <CustomBuild Include="external\optional\x86\LICENSE.webp.txt">
+      <Filter>x86</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x64\libwebpmux-3.dll">
+      <Filter>x64</Filter>
+    </CustomBuild>
+    <CustomBuild Include="external\optional\x86\libwebpmux-3.dll">
       <Filter>x86</Filter>
     </CustomBuild>
   </ItemGroup>

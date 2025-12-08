@@ -61,12 +61,13 @@ int main(int argc, char *argv[])
     int once = 0;
     int current_frame, delay;
     SDL_Event event;
+    const char *saveFile = NULL;
 
     (void)argc;
 
     /* Check command line usage */
     if ( ! argv[1] ) {
-        SDL_Log("Usage: %s [-fullscreen] <image_file> ...\n", argv[0]);
+        SDL_Log("Usage: %s [-fullscreen] [-save file] <image_file> ...\n", argv[0]);
         return(1);
     }
 
@@ -98,6 +99,12 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        if (SDL_strcmp(argv[i], "-save") == 0 && argv[i + 1]) {
+            ++i;
+            saveFile = argv[i];
+            continue;
+        }
+
         /* Open the image file */
         anim = IMG_LoadAnimation(argv[i]);
         if (!anim) {
@@ -106,6 +113,12 @@ int main(int argc, char *argv[])
         }
         w = anim->w;
         h = anim->h;
+
+        if (saveFile) {
+            if (!IMG_SaveAnimation(anim, saveFile)) {
+                SDL_Log("Couldn't save animation: %s", SDL_GetError());
+            }
+        }
 
         textures = (SDL_Texture **)SDL_calloc(anim->count, sizeof(*textures));
         if (!textures) {
@@ -187,6 +200,7 @@ int main(int argc, char *argv[])
         for (j = 0; j < anim->count; ++j) {
             SDL_DestroyTexture(textures[j]);
         }
+        SDL_free(textures);
         IMG_FreeAnimation(anim);
     }
 

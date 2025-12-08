@@ -28,8 +28,8 @@
 
 
 /* We'll have JPG save support by default */
-#ifndef SDL_IMAGE_SAVE_JPG
-#define SDL_IMAGE_SAVE_JPG    1
+#ifndef SAVE_JPG
+#define SAVE_JPG    1
 #endif
 
 #if defined(USE_STBIMAGE)
@@ -224,7 +224,6 @@ typedef struct {
 static void init_source (j_decompress_ptr cinfo)
 {
     /* We don't actually need to do anything */
-    (void)cinfo;
     return;
 }
 
@@ -289,7 +288,6 @@ static void skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 static void term_source (j_decompress_ptr cinfo)
 {
     /* We don't actually need to do anything */
-    (void)cinfo;
     return;
 }
 
@@ -341,7 +339,6 @@ static void my_error_exit(j_common_ptr cinfo)
 static void output_no_message(j_common_ptr cinfo)
 {
     /* do nothing */
-    (void)cinfo;
 }
 
 struct loadjpeg_vars {
@@ -457,7 +454,6 @@ typedef struct {
 static void init_destination(j_compress_ptr cinfo)
 {
     /* We don't actually need to do anything */
-    (void)cinfo;
     return;
 }
 
@@ -667,21 +663,20 @@ SDL_Surface *IMG_LoadJPG_IO(SDL_IOStream *src)
 /* See if an image is contained in a data source */
 bool IMG_isJPG(SDL_IOStream *src)
 {
-    (void)src;
     return false;
 }
 
 /* Load a JPEG type image from an SDL datasource */
 SDL_Surface *IMG_LoadJPG_IO(SDL_IOStream *src)
 {
-    (void)src;
+    SDL_SetError("SDL_image built without JPG support");
     return NULL;
 }
 
 #endif /* LOAD_JPG */
 
 /* Use tinyjpeg as a fallback if we don't have a hard dependency on libjpeg */
-#if SDL_IMAGE_SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB))
+#if SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB))
 
 #ifdef assert
 #undef assert
@@ -755,29 +750,23 @@ static bool IMG_SaveJPG_IO_tinyjpeg(SDL_Surface *surface, SDL_IOStream *dst, int
     return result;
 }
 
-#endif /* SDL_IMAGE_SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB)) */
+#endif /* SAVE_JPG && (defined(LOAD_JPG_DYNAMIC) || !defined(WANT_JPEGLIB)) */
 
-bool IMG_SaveJPG(SDL_Surface *surface, const char *file, int quality)
-{
-    SDL_IOStream *dst = SDL_IOFromFile(file, "wb");
-    if (dst) {
-        return IMG_SaveJPG_IO(surface, dst, 1, quality);
-    } else {
-        return false;
-    }
-}
+#if SAVE_JPG
 
 bool IMG_SaveJPG_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio, int quality)
 {
     bool result = false;
-    (void)surface;
-    (void)quality;
 
+    if (!surface) {
+        SDL_InvalidParamError("surface");
+        goto done;
+    }
     if (!dst) {
-        return SDL_SetError("Passed NULL dst");
+        SDL_InvalidParamError("dst");
+        goto done;
     }
 
-#if SDL_IMAGE_SAVE_JPG
 #ifdef USE_JPEGLIB
     if (!result) {
         result = IMG_SaveJPG_IO_jpeglib(surface, dst, quality);
@@ -790,12 +779,33 @@ bool IMG_SaveJPG_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio, int q
     }
 #endif
 
-#else
-    result = SDL_SetError("SDL_image built without JPEG save support");
-#endif
-
+done:
     if (closeio) {
-        SDL_CloseIO(dst);
+        result &= SDL_CloseIO(dst);
     }
     return result;
 }
+
+bool IMG_SaveJPG(SDL_Surface *surface, const char *file, int quality)
+{
+    SDL_IOStream *dst = SDL_IOFromFile(file, "wb");
+    if (dst) {
+        return IMG_SaveJPG_IO(surface, dst, true, quality);
+    } else {
+        return false;
+    }
+}
+
+#else // !SAVE_JPG
+
+bool IMG_SaveJPG_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio, int quality)
+{
+    return SDL_SetError("SDL_image built without JPG save support");
+}
+
+bool IMG_SaveJPG(SDL_Surface *surface, const char *file, int quality)
+{
+    return SDL_SetError("SDL_image built without JPG save support");
+}
+
+#endif // SAVE_JPG

@@ -50,6 +50,20 @@ static void draw_background(SDL_Renderer *renderer, int w, int h)
     }
 }
 
+static void set_cursor(const char *cursor_file)
+{
+    IMG_Animation *anim = IMG_LoadAnimation(cursor_file);
+    if (anim) {
+        SDL_Cursor *cursor = IMG_CreateAnimatedCursor(anim, 0, 0);
+        if (cursor) {
+            SDL_SetCursor(cursor);
+        } else {
+            SDL_Log("Couldn't create cursor with %s: %s", cursor_file, SDL_GetError());
+        }
+        IMG_FreeAnimation(anim);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     SDL_Window *window = NULL;
@@ -78,8 +92,8 @@ int main(int argc, char *argv[])
 #endif
 
     flags = SDL_WINDOW_HIDDEN;
-    for ( i=1; argv[i]; ++i ) {
-        if ( SDL_strcmp(argv[i], "-fullscreen") == 0 ) {
+    for (i = 1; argv[i]; ++i) {
+        if (SDL_strcmp(argv[i], "-fullscreen") == 0) {
             SDL_HideCursor();
             flags |= SDL_WINDOW_FULLSCREEN;
         }
@@ -137,6 +151,12 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        if (SDL_strcmp(argv[i], "-cursor") == 0 && argv[i + 1]) {
+            ++i;
+            set_cursor(argv[i]);
+            continue;
+        }
+
         /* Open the image file */
         ++attempted;
         if (tonemap) {
@@ -176,20 +196,7 @@ int main(int argc, char *argv[])
         if (saveFile) {
             SDL_Surface *surface = IMG_Load(argv[i]);
             if (surface) {
-                const char *ext = SDL_strrchr(saveFile, '.');
-                bool saved = false;
-                if (ext && SDL_strcasecmp(ext, ".avif") == 0) {
-                    saved = IMG_SaveAVIF(surface, saveFile, 90);
-                } else if (ext && SDL_strcasecmp(ext, ".bmp") == 0) {
-                    saved = SDL_SaveBMP(surface, saveFile);
-                } else if (ext && SDL_strcasecmp(ext, ".jpg") == 0) {
-                    saved = IMG_SaveJPG(surface, saveFile, 90);
-                } else if (ext && SDL_strcasecmp(ext, ".png") == 0) {
-                    saved = IMG_SavePNG(surface, saveFile);
-                } else {
-                    SDL_SetError("Unknown save file type");
-                }
-                if (!saved) {
+                if (!IMG_Save(surface, saveFile)) {
                     SDL_Log("Couldn't save %s: %s\n", saveFile, SDL_GetError());
                     result = 3;
                 }

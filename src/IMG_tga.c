@@ -19,26 +19,18 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#if !defined(__APPLE__) || defined(SDL_IMAGE_USE_COMMON_BACKEND)
-
 /* This is a Targa image file loading framework */
 
 #include <SDL3/SDL_endian.h>
 
 #include <SDL3_image/SDL_image.h>
 
-#ifdef LOAD_TGA
+// We will have TGA saving feature by default.
+#ifndef SAVE_TGA
+#define SAVE_TGA 1
+#endif /* SAVE_TGA */
 
-/*
- * A TGA loader for the SDL library
- * Supports: Reading 8, 15, 16, 24 and 32bpp images, with alpha or colourkey,
- *           uncompressed or RLE encoded.
- *
- * 2000-06-10 Mattias Engdegård <f91-men@nada.kth.se>: initial version
- * 2000-06-26 Mattias Engdegård <f91-men@nada.kth.se>: read greyscale TGAs
- * 2000-08-09 Mattias Engdegård <f91-men@nada.kth.se>: alpha inversion removed
- */
-
+#if defined(LOAD_TGA) || defined(SAVE_TGA)
 struct TGAheader {
     Uint8 infolen;      /* length of info field */
     Uint8 has_cmap;     /* 1 if image has colormap, 0 otherwise */
@@ -79,6 +71,20 @@ enum tga_type {
 /* read/write unaligned little-endian 16-bit ints */
 #define LE16(p) ((p)[0] + ((p)[1] << 8))
 #define SETLE16(p, v) ((p)[0] = (v), (p)[1] = (v) >> 8)
+#endif /* defined(LOAD_TGA) || defined(SAVE_TGA) */
+
+#if !defined(__APPLE__) || defined(SDL_IMAGE_USE_COMMON_BACKEND)
+#ifdef LOAD_TGA
+
+/*
+ * A TGA loader for the SDL library
+ * Supports: Reading 8, 15, 16, 24 and 32bpp images, with alpha or colourkey,
+ *           uncompressed or RLE encoded.
+ *
+ * 2000-06-10 Mattias Engdegård <f91-men@nada.kth.se>: initial version
+ * 2000-06-26 Mattias Engdegård <f91-men@nada.kth.se>: read greyscale TGAs
+ * 2000-08-09 Mattias Engdegård <f91-men@nada.kth.se>: alpha inversion removed
+ */
 
 /* Load a TGA type image from an SDL datasource */
 SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
@@ -340,10 +346,204 @@ error:
 /* dummy TGA load routine */
 SDL_Surface *IMG_LoadTGA_IO(SDL_IOStream *src)
 {
-    (void)src;
+    SDL_SetError("SDL_image built without TGA support");
     return NULL;
 }
 
 #endif /* LOAD_TGA */
 
 #endif /* !defined(__APPLE__) || defined(SDL_IMAGE_USE_COMMON_BACKEND) */
+
+#if SAVE_TGA
+
+bool IMG_SaveTGA_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
+{
+    Sint64 start = -1;
+    struct TGAheader hdr;
+    SDL_Palette *surface_palette = NULL;
+    SDL_Surface *temp_surface = NULL;
+    bool result = false;
+
+    if (!surface) {
+        SDL_InvalidParamError("surface");
+        goto done;
+    }
+    if (!dst) {
+        SDL_InvalidParamError("dst");
+        goto done;
+    }
+
+    start = SDL_TellIO(dst);
+
+    SDL_zero(hdr);
+
+    hdr.infolen = 0;
+    hdr.has_cmap = 0;
+    hdr.type = TGA_TYPE_RGB;
+    SETLE16(hdr.cmap_start, 0);
+    SETLE16(hdr.cmap_len, 0);
+    hdr.cmap_bits = 0;
+    SETLE16(hdr.xorigin, 0);
+    SETLE16(hdr.yorigin, 0);
+    SETLE16(hdr.width, surface->w);
+    SETLE16(hdr.height, surface->h);
+    hdr.flags = TGA_ORIGIN_UPPER;
+
+    const SDL_PixelFormatDetails *pixelFormatDetails = SDL_GetPixelFormatDetails(surface->format);
+    if (!pixelFormatDetails) {
+        goto done;
+    }
+
+    surface_palette = SDL_GetSurfacePalette(surface);
+
+    switch (surface->format) {
+    case SDL_PIXELFORMAT_INDEX8:
+        hdr.has_cmap = 1;
+        hdr.type = TGA_TYPE_INDEXED;
+        hdr.pixel_bits = 8;
+        if (surface_palette) {
+            SETLE16(hdr.cmap_len, surface_palette->ncolors);
+        } else {
+            SETLE16(hdr.cmap_len, 0);
+        }
+        hdr.cmap_bits = 24;
+        break;
+    case SDL_PIXELFORMAT_BGR24:
+    case SDL_PIXELFORMAT_RGB24:
+        hdr.type = TGA_TYPE_RGB;
+        hdr.pixel_bits = 24;
+        break;
+    case SDL_PIXELFORMAT_BGRA32:
+    case SDL_PIXELFORMAT_RGBA32:
+    case SDL_PIXELFORMAT_XRGB8888:
+        hdr.type = TGA_TYPE_RGB;
+        hdr.pixel_bits = 32;
+        hdr.flags |= 0x08;
+        break;
+    case SDL_PIXELFORMAT_XRGB1555:
+    case SDL_PIXELFORMAT_ARGB1555:
+        hdr.type = TGA_TYPE_RGB;
+        hdr.pixel_bits = 16;
+        if (surface->format == SDL_PIXELFORMAT_ARGB1555) {
+            hdr.flags |= 0x01;
+        }
+        break;
+    default:
+        SDL_SetError("Unsupported SDL_Surface format for TGA saving. Supported formats are INDEX8, BGR24, RGB24, BGRA32, RGBA32, XRGB8888, XRGB1555, ARGB1555.");
+        goto done;
+    }
+
+    if (SDL_WriteIO(dst, &hdr, sizeof(hdr)) != sizeof(hdr)) {
+        goto done;
+    }
+
+    if (hdr.has_cmap && surface_palette) {
+        SDL_Color *colors = surface_palette->colors;
+        int ncolors = LE16(hdr.cmap_len);
+        Uint8 color_entry[4];
+        for (int i = 0; i < ncolors; ++i) {
+            switch (hdr.cmap_bits) {
+            case 24:
+                color_entry[0] = colors[i].b;
+                color_entry[1] = colors[i].g;
+                color_entry[2] = colors[i].r;
+                if (SDL_WriteIO(dst, color_entry, 3) != 3) {
+                    goto done;
+                }
+                break;
+            case 32:
+                color_entry[0] = colors[i].b;
+                color_entry[1] = colors[i].g;
+                color_entry[2] = colors[i].r;
+                color_entry[3] = colors[i].a;
+                if (SDL_WriteIO(dst, color_entry, 4) != 4) {
+                    goto done;
+                }
+                break;
+            default:
+                SDL_SetError("Unsupported TGA colormap bit depth for saving");
+                goto done;
+            }
+        }
+    }
+
+    Uint8 *pixels_to_write = (Uint8 *)surface->pixels;
+    int pitch_to_write = surface->pitch;
+    int bytes_per_pixel = pixelFormatDetails->bytes_per_pixel;
+    Uint32 target_format = SDL_PIXELFORMAT_UNKNOWN;
+
+    switch (surface->format) {
+    case SDL_PIXELFORMAT_RGB24:
+        target_format = SDL_PIXELFORMAT_BGR24;
+        break;
+    case SDL_PIXELFORMAT_RGBA32:
+    case SDL_PIXELFORMAT_XRGB8888:
+        target_format = SDL_PIXELFORMAT_BGRA32;
+        break;
+    case SDL_PIXELFORMAT_XRGB1555:
+    case SDL_PIXELFORMAT_ARGB1555:
+        target_format = SDL_PIXELFORMAT_XRGB1555;
+        break;
+    default:
+        break;
+    }
+
+    if (target_format != SDL_PIXELFORMAT_UNKNOWN && target_format != surface->format) {
+        temp_surface = SDL_ConvertSurface(surface, target_format);
+        if (!temp_surface) {
+            goto done;
+        }
+        pixels_to_write = (Uint8 *)temp_surface->pixels;
+        pitch_to_write = temp_surface->pitch;
+        const SDL_PixelFormatDetails *tempPixelFormatDetails = SDL_GetPixelFormatDetails(temp_surface->format);
+        if (tempPixelFormatDetails) {
+            bytes_per_pixel = tempPixelFormatDetails->bytes_per_pixel;
+        } else {
+            goto done;
+        }
+    }
+
+    for (int y = 0; y < surface->h; ++y) {
+        if (SDL_WriteIO(dst, pixels_to_write + y * pitch_to_write, (size_t)surface->w * bytes_per_pixel) != (size_t)(surface->w * bytes_per_pixel)) {
+            goto done;
+        }
+    }
+
+    result = true;
+
+done:
+    if (temp_surface) {
+        SDL_DestroySurface(temp_surface);
+    }
+    if (!result && !closeio && start != -1) {
+        SDL_SeekIO(dst, start, SDL_IO_SEEK_SET);
+    }
+    if (closeio) {
+        result &= SDL_CloseIO(dst);
+    }
+    return result;
+}
+
+bool IMG_SaveTGA(SDL_Surface *surface, const char *file)
+{
+    SDL_IOStream *dst = SDL_IOFromFile(file, "wb");
+    if (dst) {
+        return IMG_SaveTGA_IO(surface, dst, true);
+    } else {
+        return false;
+    }
+}
+
+#else
+
+bool IMG_SaveTGA_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
+{
+    return SDL_SetError("SDL_image built without TGA save support");
+}
+
+bool IMG_SaveTGA(SDL_Surface *surface, const char *file)
+{
+    return SDL_SetError("SDL_image built without TGA save support");
+}
+
+#endif /* SAVE_TGA */
