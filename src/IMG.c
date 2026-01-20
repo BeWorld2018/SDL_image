@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -25,6 +25,10 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
+#endif
+
+#ifndef SDL_PROP_SURFACE_FLIP_NUMBER
+#define SDL_PROP_SURFACE_FLIP_NUMBER    "SDL.surface.flip"
 #endif
 
 #if defined(SDL_BUILD_MAJOR_VERSION)
@@ -545,4 +549,74 @@ Uint64 IMG_TimebaseDuration(Uint64 pts, Uint64 duration, Uint64 src_numerator, U
     Uint64 a = ( ( ( ( pts + duration ) * 2 ) + 1 ) * src_numerator * dst_denominator ) / ( 2 * src_denominator * dst_numerator );
     Uint64 b = ( ( ( pts * 2 ) + 1 ) * src_numerator * dst_denominator ) / ( 2 * src_denominator * dst_numerator );
     return (a - b);
+}
+
+SDL_Surface *IMG_ApplyOrientation(SDL_Surface *surface, int orientation)
+{
+    float rotation = 0.0f;
+    SDL_FlipMode flip = SDL_FLIP_NONE;
+    switch (orientation) {
+    case 1:
+        // Normal (no rotation required)
+        break;
+    case 2:
+        // Mirror horizontal
+        flip = SDL_FLIP_HORIZONTAL;
+        break;
+    case 3:
+        // Rotate 180
+        rotation = 180.0f;
+        break;
+    case 4:
+        // Mirror vertical
+        flip = SDL_FLIP_VERTICAL;
+        break;
+    case 5:
+        // Mirror horizontal and rotate 270 CW
+        flip = SDL_FLIP_HORIZONTAL;
+        rotation = 270.0f;
+        break;
+    case 6:
+        // Rotate 90 CW
+        rotation = 90.0f;
+        break;
+    case 7:
+        // Mirror horizontal and rotate 90 CW
+        flip = SDL_FLIP_HORIZONTAL;
+        rotation = 90.0f;
+        break;
+    case 8:
+        // Rotate 270 CW
+        rotation = 270.0f;
+        break;
+    default:
+        break;
+    }
+
+#ifdef ORIENTATION_USES_PROPERTIES
+    if (flip != SDL_FLIP_NONE) {
+        SDL_PropertiesID props = SDL_GetSurfaceProperties(surface);
+        SDL_SetNumberProperty(props, SDL_PROP_SURFACE_FLIP_NUMBER, flip);
+    }
+    if (rotation != 0.0f) {
+        SDL_PropertiesID props = SDL_GetSurfaceProperties(surface);
+        SDL_SetFloatProperty(props, SDL_PROP_SURFACE_ROTATION_FLOAT, rotation);
+    }
+#else
+    if (flip != SDL_FLIP_NONE) {
+        if (!SDL_FlipSurface(surface, flip)) {
+            SDL_DestroySurface(surface);
+            return NULL;
+        }
+    }
+    if (rotation != 0.0f) {
+        SDL_Surface *tmp = SDL_RotateSurface(surface, rotation);
+        SDL_DestroySurface(surface);
+        if (!tmp) {
+            return NULL;
+        }
+        surface = tmp;
+    }
+#endif
+    return surface;
 }

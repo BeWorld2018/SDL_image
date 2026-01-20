@@ -1,6 +1,6 @@
 /*
   showanim:  A test application for the SDL image loading library.
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -25,7 +25,7 @@
 
 
 /* Draw a Gimpish background pattern to show transparency in the image */
-static void draw_background(SDL_Renderer *renderer, int w, int h)
+static void draw_background(SDL_Renderer *renderer)
 {
     const SDL_Color col[2] = {
         { 0x66, 0x66, 0x66, 0xff },
@@ -33,7 +33,9 @@ static void draw_background(SDL_Renderer *renderer, int w, int h)
     };
     const int dx = 8, dy = 8;
     SDL_FRect rect;
-    int i, x, y;
+    int i, x, y, w, h;
+
+    SDL_GetCurrentRenderOutputSize(renderer, &w, &h);
 
     rect.w = (float)dx;
     rect.h = (float)dy;
@@ -48,6 +50,19 @@ static void draw_background(SDL_Renderer *renderer, int w, int h)
             SDL_RenderFillRect(renderer, &rect);
         }
     }
+}
+
+static const char *get_file_path(const char *file)
+{
+    static char path[4096];
+
+    if (*file != '/' && !SDL_GetPathInfo(file, NULL)) {
+        SDL_snprintf(path, sizeof(path), "%s%s", SDL_GetBasePath(), file);
+        if (SDL_GetPathInfo(path, NULL)) {
+            return path;
+        }
+    }
+    return file;
 }
 
 int main(int argc, char *argv[])
@@ -106,7 +121,7 @@ int main(int argc, char *argv[])
         }
 
         /* Open the image file */
-        anim = IMG_LoadAnimation(argv[i]);
+        anim = IMG_LoadAnimation(get_file_path(argv[i]));
         if (!anim) {
             SDL_Log("Couldn't load %s: %s\n", argv[i], SDL_GetError());
             continue;
@@ -177,7 +192,7 @@ int main(int argc, char *argv[])
                 }
             }
             /* Draw a background pattern in case the image has transparency */
-            draw_background(renderer, w, h);
+            draw_background(renderer);
 
             /* Display the image */
             SDL_RenderTexture(renderer, textures[current_frame], NULL, NULL);

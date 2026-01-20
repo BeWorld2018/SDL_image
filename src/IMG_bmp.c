@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -549,7 +549,7 @@ static SDL_Surface *GetIconSurface(SDL_IOStream *src, Sint64 offset, int type, i
         SDL_SetError("Unsupported ICO bitmap format");
     }
 
-    if (type == ICON_TYPE_CUR) {
+    if (type == ICON_TYPE_CUR && surface) {
         SDL_PropertiesID props = SDL_GetSurfaceProperties(surface);
         SDL_SetNumberProperty(props, SDL_PROP_SURFACE_HOTSPOT_X_NUMBER, hot_x);
         SDL_SetNumberProperty(props, SDL_PROP_SURFACE_HOTSPOT_Y_NUMBER, hot_y);
@@ -785,10 +785,10 @@ static bool FillIconEntry(CURSORICONFILEDIRENTRY *entry, SDL_Surface *surface, i
     SDL_zerop(entry);
     entry->bWidth = surface->w < 256 ? surface->w : 0;  // 0 means a width of 256
     entry->bHeight = surface->h < 256 ? surface->h : 0; // 0 means a height of 256
-    entry->xHotspot = hot_x;
-    entry->yHotspot = hot_y;
-    entry->dwImageSize = dwImageSize;
-    entry->dwImageOffset = dwImageOffset;
+    entry->xHotspot = SDL_Swap16LE(hot_x);
+    entry->yHotspot = SDL_Swap16LE(hot_y);
+    entry->dwImageSize = SDL_Swap32LE(dwImageSize);
+    entry->dwImageOffset = SDL_Swap32LE(dwImageOffset);
     return true;
 }
 
@@ -839,9 +839,9 @@ static bool SaveICOCUR(SDL_Surface *surface, SDL_IOStream *dst, bool closeio, in
     // Raymond Chen has more insight into this format at:
     // https://devblogs.microsoft.com/oldnewthing/20101018-00/?p=12513
     CURSORICONFILEDIR dir;
-    dir.idReserved = 0;
-    dir.idType = type;
-    dir.idCount = count;
+    dir.idReserved = SDL_Swap16LE(0);
+    dir.idType = SDL_Swap16LE(type);
+    dir.idCount = SDL_Swap16LE(count);
     result = (SDL_WriteIO(dst, &dir, sizeof(dir)) == sizeof(dir));
 
     Uint32 entries_size = count * sizeof(CURSORICONFILEDIRENTRY);

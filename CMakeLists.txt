@@ -9,8 +9,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 3)
 set(MINOR_VERSION 3)
-set(MICRO_VERSION 0)
-set(SDL_REQUIRED_VERSION 3.3.0)
+set(MICRO_VERSION 5)
+set(SDL_REQUIRED_VERSION 3.4.0)
 
 project(SDL3_image
     LANGUAGES C
@@ -106,7 +106,7 @@ cmake_dependent_option(SDLIMAGE_SAMPLES_INSTALL "Install the SDL3_image sample p
 option(SDLIMAGE_TESTS "Build unit tests?" OFF)
 option(SDLIMAGE_TESTS_INSTALL "Install unit tests?" OFF)
 
-option(SDLIMAGE_BACKEND_STB "Use stb_image for loading JPEG and PNG files" ON)
+option(SDLIMAGE_BACKEND_STB "Use stb_image for loading JPEG files" ON)
 cmake_dependent_option(SDLIMAGE_BACKEND_WIC "Add WIC backend (Windows Imaging Component)" OFF WIN32 OFF)
 cmake_dependent_option(SDLIMAGE_BACKEND_IMAGEIO "Use native Mac OS X frameworks for loading images" ON APPLE OFF)
 
@@ -128,6 +128,7 @@ option(SDLIMAGE_WEBP "Support loading WEBP images" ON)
 option(SDLIMAGE_XCF "Support loading XCF images" ON)
 option(SDLIMAGE_XPM "Support loading XPM images" ON)
 option(SDLIMAGE_XV "Support loading XV images" ON)
+cmake_dependent_option(SDLIMAGE_PNG_LIBPNG "Support loading PNGs using libpng (useful for APNGs)" ON SDLIMAGE_PNG OFF)
 
 cmake_dependent_option(SDLIMAGE_ANI_SAVE "Add ANI save support" ON SDLIMAGE_ANI OFF)
 cmake_dependent_option(SDLIMAGE_AVIF_SAVE "Add AVIF save support" ON SDLIMAGE_AVIF OFF)
@@ -182,13 +183,13 @@ endif()
 cmake_dependent_option(SDLIMAGE_JXL_SHARED "Dynamically load JXL support (requires shared libjxl)"
     ${SDLIMAGE_DEPS_SHARED} SDLIMAGE_JXL OFF)
 
-if(SDLIMAGE_VENDORED AND SDLIMAGE_PNG AND NOT (SDLIMAGE_BACKEND_WIC OR SDLIMAGE_BACKEND_STB OR SDLIMAGE_BACKEND_IMAGEIO))
+if(SDLIMAGE_VENDORED AND SDLIMAGE_PNG)
     set(SDLIMAGE_PNG_VENDORED ON)
 else()
     set(SDLIMAGE_PNG_VENDORED OFF)
 endif()
 cmake_dependent_option(SDLIMAGE_PNG_SHARED "Dynamically load PNG support (requires shared libpng)"
-    ${SDLIMAGE_DEPS_SHARED} "SDLIMAGE_PNG;NOT SDLIMAGE_BACKEND_WIC;NOT SDLIMAGE_BACKEND_STB;NOT SDLIMAGE_BACKEND_IMAGEIO" OFF)
+    ${SDLIMAGE_DEPS_SHARED} "SDLIMAGE_PNG" OFF)
 
 if(SDLIMAGE_VENDORED AND SDLIMAGE_TIF AND NOT (SDLIMAGE_BACKEND_IMAGEIO OR SDLIMAGE_BACKEND_WIC))
     set(SDLIMAGE_TIF_VENDORED ON)
@@ -206,7 +207,7 @@ endif()
 cmake_dependent_option(SDLIMAGE_WEBP_SHARED "Dynamically load WEBP support (requires shared libwebp)"
     ${SDLIMAGE_DEPS_SHARED} SDLIMAGE_WEBP OFF)
 
-if(SDLIMAGE_PNG_VENDORED)
+if(SDLIMAGE_PNG_LIBPNG AND SDLIMAGE_PNG_VENDORED)
     set(SDLIMAGE_ZLIB ON)
 else()
     set(SDLIMAGE_ZLIB OFF)
@@ -217,11 +218,7 @@ if(SDLIMAGE_VENDORED AND SDLIMAGE_PNG_VENDORED)
 else()
     set(SDLIMAGE_ZLIB_VENDORED OFF)
 endif()
-if(SDLIMAGE_PNG_SHARED)
-    set(SDLIMAGE_ZLIB_SHARED ON)
-else()
-    set(SDLIMAGE_ZLIB_SHARED OFF)
-endif()
+set(SDLIMAGE_ZLIB_SHARED OFF)
 
 # Save BUILD_SHARED_LIBS variable
 set(SDLIMAGE_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
@@ -240,6 +237,11 @@ endif()
 
 if(NOT TARGET SDL3::Headers OR NOT TARGET ${sdl3_target_name})
     find_package(SDL3 ${SDL_REQUIRED_VERSION} REQUIRED COMPONENTS ${sdl_required_components})
+endif()
+
+get_property(sdl3_version TARGET ${sdl3_target_name} PROPERTY SDL_FULL_VERSION)
+if(sdl3_version AND sdl3_version VERSION_LESS SDL_REQUIRED_VERSION)
+  message(FATAL_ERROR "SDL3 ${SDL_REQUIRED_VERSION} is required (${sdl3_version} was found)")
 endif()
 
 SDL_DetectTargetCPUArchitectures(SDL_CPU_NAMES)
@@ -268,6 +270,7 @@ add_library(${sdl3_image_target_name}
     src/IMG_avif.c
     src/IMG_bmp.c
     src/IMG_gif.c
+    src/IMG_gpu.c
     src/IMG_jpg.c
     src/IMG_jxl.c
     src/IMG_lbm.c
@@ -402,13 +405,21 @@ if(APPLE)
     if(SDLIMAGE_BACKEND_IMAGEIO)
         enable_language(OBJC)
         set(SDLIMAGE_IMAGEIO_ENABLED TRUE)
+        if(CMAKE_VERSION VERSION_LESS "3.24")
+            set(genex_FRAMEWORK "1:")
+        else()
+            set(genex_FRAMEWORK "LINK_LIBRARY:FRAMEWORK,")
+        endif()
         if(CMAKE_SYSTEM_NAME MATCHES ".*(Darwin|MacOS).*")
-            target_link_libraries(${sdl3_image_target_name} PRIVATE -Wl,-framework,ApplicationServices)
-        elseif(IOS)
+            target_link_libraries(${sdl3_image_target_name} PRIVATE $<${genex_FRAMEWORK}ApplicationServices>)
+            target_link_libraries(${sdl3_image_target_name} PRIVATE $<${genex_FRAMEWORK}Foundation>)
+        else()
             target_link_libraries(${sdl3_image_target_name} PRIVATE
-                -Wl,-framework,CoreGraphics
-                -Wl,-framework,ImageIO
-                -Wl,-framework,MobileCoreServices
+                $<${genex_FRAMEWORK}CoreGraphics>
+                $<${genex_FRAMEWORK}Foundation>
+                $<${genex_FRAMEWORK}ImageIO>
+                $<${genex_FRAMEWORK}MobileCoreServices>
+                $<${genex_FRAMEWORK}UIKit>
             )
         endif()
         target_link_libraries(${sdl3_image_target_name} PRIVATE objc)
@@ -455,12 +466,15 @@ if(SDLIMAGE_ZLIB)
         if(NOT TARGET ZLIB::ZLIB)
             add_library(ZLIB::ZLIB ALIAS ${ZLIB_LIBRARY})
         endif()
+        if(NOT TARGET ZLIB::zlibstatic)
+            add_library(ZLIB::zlibstatic ALIAS ${ZLIB_LIBRARY})
+        endif()
         # ZLIB_LIBRARIES variable is used by vendored libpng
         set(ZLIB_LIBRARIES "${ZLIB_LIBRARY}")
         # ZLIB_INCLUDE_DIRS variable is used by vendored libpng
         set(ZLIB_INCLUDE_DIRS "${ZLIB_INCLUDE_DIR}")
         target_include_directories(${ZLIB_LIBRARY} INTERFACE $<BUILD_INTERFACE:${ZLIB_INCLUDE_DIRS}>)
-        if(SDLIMAGE_ZLIB_SHARED OR NOT SDLIMAGE_BUILD_SHARED_LIBS)
+        if(SDLIMAGE_ZLIB_SHARED OR (SDLIMAGE_PNG AND NOT SDLIMAGE_PNG_SHARED))
             list(APPEND INSTALL_EXTRA_TARGETS ${ZLIB_LIBRARY})
         endif()
         set_target_properties(${ZLIB_LIBRARY} PROPERTIES EXPORT_NAME external_zlib)
@@ -510,6 +524,7 @@ if(SDLIMAGE_AOM)
           set(AOM_TARGET_CPU "x86_64")
         elseif(SDL_CPU_ARM32)
           set(AOM_TARGET_CPU "arm")
+          set(AOM_NEON_INTRIN_FLAG "-mfpu=neon" CACHE STRING "AOM CFLAGS for enabling neon intrinsics")
         elseif(SDL_CPU_ARM64)
           set(AOM_TARGET_CPU "aarch64")
         endif()
@@ -817,19 +832,23 @@ if(SDLIMAGE_PCX)
 endif()
 
 list(APPEND SDLIMAGE_BACKENDS PNG)
+list(APPEND SDLIMAGE_BACKENDS APNG)
 set(SDLIMAGE_PNG_ENABLED FALSE)
 if(SDLIMAGE_PNG)
-    if(SDLIMAGE_BACKEND_STB OR SDLIMAGE_BACKEND_WIC OR SDLIMAGE_BACKEND_IMAGEIO)
-        set(SDLIMAGE_PNG_ENABLED TRUE)
-    else()
+    set(SDLIMAGE_APNG_ENABLED FALSE)
+    set(SDLIMAGE_PNG_ENABLED TRUE)
+    set(SDLIMAGE_LIBPNG_ENABLED FALSE)
+
+    if(SDLIMAGE_PNG_LIBPNG)
         if(SDLIMAGE_PNG_VENDORED)
-            set(SDLIMAGE_PNG_ENABLED TRUE)
+            set(PNG_SHARED "${SDLIMAGE_PNG_SHARED}")
+            set(SDLIMAGE_LIBPNG_ENABLED TRUE)
             message(STATUS "${PROJECT_NAME}: Using vendored libpng")
             set(PNG_TESTS OFF CACHE BOOL "Build PNG Tests" FORCE)
             set(SKIP_INSTALL_EXPORT TRUE)
             sdl_check_project_in_subfolder(external/libpng libpng SDLIMAGE_VENDORED)
             add_subdirectory(external/libpng external/libpng-build EXCLUDE_FROM_ALL)
-            register_license(zlib external/libpng/LICENSE)
+            register_license(libpng external/libpng/LICENSE)
             if(SDLIMAGE_PNG_SHARED)
                 set(PNG_LIBRARY png_shared)
             else()
@@ -853,12 +872,12 @@ if(SDLIMAGE_PNG)
             endif()
         elseif(SDLIMAGE_PNG_SHARED AND DEFINED SDLIMAGE_DYNAMIC_PNG AND EXISTS "${SDLIMAGE_DYNAMIC_PNG}")
             message(STATUS "${PROJECT_NAME}: Using libpng from CMake variable")
-            set(SDLIMAGE_PNG_ENABLED TRUE)
+            set(SDLIMAGE_LIBPNG_ENABLED TRUE)
         else()
             find_package(PNG ${required})
             if(PNG_FOUND)
                 message(STATUS "${PROJECT_NAME}: Using system libpng")
-                set(SDLIMAGE_PNG_ENABLED TRUE)
+                set(SDLIMAGE_LIBPNG_ENABLED TRUE)
                 if(NOT SDLIMAGE_PNG_SHARED)
                     list(APPEND PC_REQUIRES libpng)
                 endif()
@@ -866,40 +885,36 @@ if(SDLIMAGE_PNG)
                 message(${FATAL_ERROR} "libpng NOT found")
             endif()
         endif()
-        if(SDLIMAGE_PNG_ENABLED)
-            if(SDLIMAGE_PNG_SHARED)
-                if(NOT DEFINED SDLIMAGE_DYNAMIC_PNG)
-                    target_include_directories(${sdl3_image_target_name} PRIVATE
-                        $<TARGET_PROPERTY:PNG::PNG,INCLUDE_DIRECTORIES>
-                        $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>
-                        $<TARGET_PROPERTY:PNG::PNG,INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
-                    )
-                    if(SDLIMAGE_PNG_VENDORED)
-                      add_dependencies(${sdl3_image_target_name} PNG::PNG)
-                    endif()
-                endif()
-                target_get_dynamic_library(SDLIMAGE_DYNAMIC_PNG PNG::PNG)
-                message(STATUS "Dynamic libpng: ${SDLIMAGE_DYNAMIC_PNG}")
-                target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_LIBPNG_DYNAMIC=\"${SDLIMAGE_DYNAMIC_PNG}\"")
-            else()
-                target_link_libraries(${sdl3_image_target_name} PRIVATE PNG::PNG)
-            endif()
-        endif()
     endif()
-    if(SDLIMAGE_PNG_ENABLED)
+
+    if(SDLIMAGE_LIBPNG_ENABLED)
+        set(SDLIMAGE_APNG_ENABLED TRUE)
         target_compile_definitions(${sdl3_image_target_name} PRIVATE
-            LOAD_PNG
-            SAVE_PNG=$<BOOL:${SDLIMAGE_PNG_SAVE}>
+            SDL_IMAGE_LIBPNG
         )
-        if(NOT(SDLIMAGE_BACKEND_STB OR SDLIMAGE_BACKEND_WIC OR SDLIMAGE_BACKEND_IMAGEIO))
-            target_compile_definitions(${sdl3_image_target_name} PRIVATE
-                SDL_IMAGE_LIBPNG
-            )
+        if(SDLIMAGE_PNG_SHARED)
+            if(NOT DEFINED SDLIMAGE_DYNAMIC_PNG)
+                target_include_directories(${sdl3_image_target_name} PRIVATE
+                    $<TARGET_PROPERTY:PNG::PNG,INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:PNG::PNG,INTERFACE_SYSTEM_INCLUDE_DIRECTORIES>
+                )
+                if(SDLIMAGE_PNG_VENDORED)
+                  add_dependencies(${sdl3_image_target_name} PNG::PNG)
+                endif()
+            endif()
+            target_get_dynamic_library(SDLIMAGE_DYNAMIC_PNG PNG::PNG)
+            message(STATUS "Dynamic libpng: ${SDLIMAGE_DYNAMIC_PNG}")
+            target_compile_definitions(${sdl3_image_target_name} PRIVATE "LOAD_LIBPNG_DYNAMIC=\"${SDLIMAGE_DYNAMIC_PNG}\"")
+        else()
+            target_link_libraries(${sdl3_image_target_name} PRIVATE PNG::PNG)
         endif()
-    else()
-        # Variable is used by test suite
-        set(SDLIMAGE_PNG_SAVE OFF)
     endif()
+
+    target_compile_definitions(${sdl3_image_target_name} PRIVATE
+        LOAD_PNG
+        SAVE_PNG=$<BOOL:${SDLIMAGE_PNG_SAVE}>
+    )
 endif()
 
 list(APPEND SDLIMAGE_BACKENDS PNM)
@@ -1313,6 +1328,7 @@ if(SDLIMAGE_SAMPLES)
     add_sdl_image_example_executable(showanim examples/showanim.c)
     add_sdl_image_example_executable(showimage examples/showimage.c)
     add_sdl_image_example_executable(showclipboard examples/showclipboard.c)
+    add_sdl_image_example_executable(showgpuimage examples/showgpuimage.c)
 endif()
 
 if(SDLIMAGE_TESTS)

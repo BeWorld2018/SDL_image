@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -49,6 +49,15 @@
 #ifdef WANT_JPEGLIB
 
 #define USE_JPEGLIB
+
+#if defined(LOAD_JPG_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "jpeg",
+    "Support for JPEG images using libjpg",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    LOAD_JPG_DYNAMIC
+)
+#endif
 
 #include <jpeglib.h>
 
@@ -375,7 +384,7 @@ static bool LIBJPEG_LoadJPG_IO(SDL_IOStream *src, struct loadjpeg_vars *vars)
         lib.jpeg_calc_output_dimensions(&vars->cinfo);
 
         /* Allocate an output surface to hold the image */
-        vars->surface = SDL_CreateSurface(vars->cinfo.output_width, vars->cinfo.output_height, SDL_PIXELFORMAT_BGRA32);
+        vars->surface = SDL_CreateSurface(vars->cinfo.output_width, vars->cinfo.output_height, SDL_PIXELFORMAT_RGBA32);
     } else {
         /* Set 24-bit RGB output */
         vars->cinfo.out_color_space = JCS_RGB;
@@ -407,6 +416,17 @@ static bool LIBJPEG_LoadJPG_IO(SDL_IOStream *src, struct loadjpeg_vars *vars)
     lib.jpeg_finish_decompress(&vars->cinfo);
     lib.jpeg_destroy_decompress(&vars->cinfo);
 
+    if (vars->cinfo.num_components == 4) {
+        // The CMYK image is essentially RGBA composed over black
+        SDL_Surface *output = SDL_CreateSurface(vars->cinfo.output_width, vars->cinfo.output_height, SDL_PIXELFORMAT_RGB24);
+        if (!output) {
+            return false;
+        }
+
+        SDL_BlitSurface(vars->surface, NULL, output, NULL);
+        SDL_DestroySurface(vars->surface);
+        vars->surface = output;
+    }
     return true;
 }
 
