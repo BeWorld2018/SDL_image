@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -36,6 +36,15 @@
 #ifdef LOAD_AVIF
 
 #include <avif/avif.h>
+
+#if defined(LOAD_AVIF_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "avif",
+    "Support for AVIF images using libavif",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    LOAD_AVIF_DYNAMIC
+)
+#endif
 
 
 /*
@@ -1091,14 +1100,14 @@ bool IMG_CreateAVIFAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Propertie
     ctx->current_frame = 0;
 
     int maxLCores = SDL_GetNumLogicalCPUCores();
-    int maxThreads = (int)SDL_GetNumberProperty(props, "avif.maxthreads", maxLCores / 2);
+    int maxThreads = (int)SDL_GetNumberProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_MAX_THREADS_NUMBER, maxLCores / 2);
     maxThreads = SDL_clamp(maxThreads, 1, maxLCores);
     ctx->decoder->maxThreads = maxThreads;
 
-    bool allowProgressive = SDL_GetBooleanProperty(props, "avif.allowprogressive", true);
+    bool allowProgressive = SDL_GetBooleanProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_PROGRESSIVE_BOOLEAN, true);
     ctx->decoder->allowProgressive = allowProgressive ? AVIF_TRUE : AVIF_FALSE;
 
-    bool allowIncremental = SDL_GetBooleanProperty(props, "avif.allowincremental", false);
+    bool allowIncremental = SDL_GetBooleanProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_PROGRESSIVE_BOOLEAN, false);
     ctx->decoder->allowIncremental = allowIncremental ? AVIF_TRUE : AVIF_FALSE;
 
     bool ignoreProps = SDL_GetBooleanProperty(props, IMG_PROP_METADATA_IGNORE_PROPS_BOOLEAN, false);
@@ -1129,7 +1138,7 @@ bool IMG_CreateAVIFAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Propertie
 
     if (!ignoreProps) {
         // Allow implicit properties to be set which are not globalized but specific to the decoder.
-        SDL_SetNumberProperty(decoder->props, "IMG_PROP_METADATA_FRAME_COUNT_NUMBER", ctx->total_frames);
+        SDL_SetNumberProperty(decoder->props, IMG_PROP_METADATA_FRAME_COUNT_NUMBER, ctx->total_frames);
 
         // Set well-defined properties.
         SDL_SetNumberProperty(decoder->props, IMG_PROP_METADATA_LOOP_COUNT_NUMBER, ctx->decoder->repetitionCount);
@@ -1565,10 +1574,10 @@ bool IMG_CreateAVIFAnimationEncoder(IMG_AnimationEncoder *encoder, SDL_Propertie
     }
 
     int availableLCores = SDL_GetNumLogicalCPUCores();
-    int threads = (int)SDL_GetNumberProperty(props, "maxthreads", availableLCores / 2);
+    int threads = (int)SDL_GetNumberProperty(props, IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_MAX_THREADS_NUMBER, availableLCores / 2);
     threads = SDL_clamp(threads, 1, availableLCores);
 
-    int keyFrameInterval = (int)SDL_GetNumberProperty(props, "keyframeinterval", 0);
+    int keyFrameInterval = (int)SDL_GetNumberProperty(props, IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_KEYFRAME_INTERVAL_NUMBER, 0);
 
     ctx->encoder->maxThreads = threads;
     ctx->encoder->quality = encoder->quality;

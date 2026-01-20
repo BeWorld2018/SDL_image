@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -24,6 +24,15 @@
 #include <SDL3_image/SDL_image.h>
 
 #ifdef LOAD_JXL
+
+#if defined(LOAD_JXL_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
+SDL_ELF_NOTE_DLOPEN(
+    "libjxl",
+    "Support for JPEG XL images using libjxl",
+    SDL_ELF_NOTE_DLOPEN_PRIORITY_SUGGESTED,
+    LOAD_JXL_DYNAMIC
+)
+#endif
 
 #include <jxl/decode.h>
 

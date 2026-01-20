@@ -1,6 +1,6 @@
 /*
   SDL_image:  An example image loading library for use with SDL
-  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -45,7 +45,7 @@ extern "C" {
  */
 #define SDL_IMAGE_MAJOR_VERSION 3
 #define SDL_IMAGE_MINOR_VERSION 3
-#define SDL_IMAGE_MICRO_VERSION 0
+#define SDL_IMAGE_MICRO_VERSION 5
 
 /**
  * This is the version number macro for the current SDL_image version.
@@ -229,7 +229,7 @@ extern SDL_DECLSPEC SDL_Surface * SDLCALL IMG_Load_IO(SDL_IOStream *src, bool cl
 extern SDL_DECLSPEC SDL_Surface * SDLCALL IMG_LoadTyped_IO(SDL_IOStream *src, bool closeio, const char *type);
 
 /**
- * Load an image from a filesystem path into a GPU texture.
+ * Load an image from a filesystem path into a texture.
  *
  * An SDL_Texture represents an image in GPU memory, usable by SDL's 2D Render
  * API. This can be significantly more efficient than using a CPU-bound
@@ -252,7 +252,7 @@ extern SDL_DECLSPEC SDL_Surface * SDLCALL IMG_LoadTyped_IO(SDL_IOStream *src, bo
  * When done with the returned texture, the app should dispose of it with a
  * call to SDL_DestroyTexture().
  *
- * \param renderer the SDL_Renderer to use to create the GPU texture.
+ * \param renderer the SDL_Renderer to use to create the texture.
  * \param file a path on the filesystem to load an image from.
  * \returns a new texture, or NULL on error.
  *
@@ -264,7 +264,7 @@ extern SDL_DECLSPEC SDL_Surface * SDLCALL IMG_LoadTyped_IO(SDL_IOStream *src, bo
 extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture(SDL_Renderer *renderer, const char *file);
 
 /**
- * Load an image from an SDL data source into a GPU texture.
+ * Load an image from an SDL data source into a texture.
  *
  * An SDL_Texture represents an image in GPU memory, usable by SDL's 2D Render
  * API. This can be significantly more efficient than using a CPU-bound
@@ -296,7 +296,7 @@ extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture(SDL_Renderer *renderer
  * When done with the returned texture, the app should dispose of it with a
  * call to SDL_DestroyTexture().
  *
- * \param renderer the SDL_Renderer to use to create the GPU texture.
+ * \param renderer the SDL_Renderer to use to create the texture.
  * \param src an SDL_IOStream that data will be read from.
  * \param closeio true to close/free the SDL_IOStream before returning, false
  *                to leave it open.
@@ -310,7 +310,7 @@ extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture(SDL_Renderer *renderer
 extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture_IO(SDL_Renderer *renderer, SDL_IOStream *src, bool closeio);
 
 /**
- * Load an image from an SDL data source into a GPU texture.
+ * Load an image from an SDL data source into a texture.
  *
  * An SDL_Texture represents an image in GPU memory, usable by SDL's 2D Render
  * API. This can be significantly more efficient than using a CPU-bound
@@ -348,7 +348,7 @@ extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture_IO(SDL_Renderer *rende
  * When done with the returned texture, the app should dispose of it with a
  * call to SDL_DestroyTexture().
  *
- * \param renderer the SDL_Renderer to use to create the GPU texture.
+ * \param renderer the SDL_Renderer to use to create the texture.
  * \param src an SDL_IOStream that data will be read from.
  * \param closeio true to close/free the SDL_IOStream before returning, false
  *                to leave it open.
@@ -362,6 +362,135 @@ extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTexture_IO(SDL_Renderer *rende
  * \sa IMG_LoadTexture_IO
  */
 extern SDL_DECLSPEC SDL_Texture * SDLCALL IMG_LoadTextureTyped_IO(SDL_Renderer *renderer, SDL_IOStream *src, bool closeio, const char *type);
+
+/**
+ * Load an image from a filesystem path into a GPU texture.
+ *
+ * An SDL_GPUTexture represents an image in GPU memory, usable by SDL's GPU
+ * API. Regardless of the source format of the image, this function will
+ * create a GPU texture with the format SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+ * with no mip levels. It can be bound as a sampled texture from a graphics or
+ * compute pipeline and as a a readonly storage texture in a compute pipeline.
+ *
+ * There is a separate function to read files from an SDL_IOStream, if you
+ * need an i/o abstraction to provide data from anywhere instead of a simple
+ * filesystem read; that function is IMG_LoadGPUTexture_IO().
+ *
+ * When done with the returned texture, the app should dispose of it with a
+ * call to SDL_ReleaseGPUTexture().
+ *
+ * \param device the SDL_GPUDevice to use to create the GPU texture.
+ * \param copy_pass the SDL_GPUCopyPass to use to upload the loaded image to
+ *                  the GPU texture.
+ * \param file a path on the filesystem to load an image from.
+ * \param width a pointer filled in with the width of the GPU texture. may be
+ *              NULL.
+ * \param height a pointer filled in with the width of the GPU texture. may be
+ *               NULL.
+ * \returns a new GPU texture, or NULL on error.
+ *
+ * \since This function is available since SDL_image 3.4.0.
+ *
+ * \sa IMG_LoadGPUTextureTyped_IO
+ * \sa IMG_LoadGPUTexture_IO
+ */
+extern SDL_DECLSPEC SDL_GPUTexture * SDLCALL IMG_LoadGPUTexture(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file, int *width, int *height);
+
+/**
+ * Load an image from an SDL data source into a GPU texture.
+ *
+ * An SDL_GPUTexture represents an image in GPU memory, usable by SDL's GPU
+ * API. Regardless of the source format of the image, this function will
+ * create a GPU texture with the format SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+ * with no mip levels. It can be bound as a sampled texture from a graphics or
+ * compute pipeline and as a a readonly storage texture in a compute pipeline.
+ *
+ * If `closeio` is true, `src` will be closed before returning, whether this
+ * function succeeds or not. SDL_image reads everything it needs from `src`
+ * during this call in any case.
+ *
+ * There is a separate function to read files from disk without having to deal
+ * with SDL_IOStream: `IMG_LoadGPUTexture(device, copy_pass, "filename.jpg",
+ * width, height) will call this function and manage those details for you,
+ * determining the file type from the filename's extension.
+ *
+ * There is also IMG_LoadGPUTextureTyped_IO(), which is equivalent to this
+ * function except a file extension (like "BMP", "JPG", etc) can be specified,
+ * in case SDL_image cannot autodetect the file format.
+ *
+ * When done with the returned texture, the app should dispose of it with a
+ * call to SDL_ReleaseGPUTexture().
+ *
+ * \param device the SDL_GPUDevice to use to create the GPU texture.
+ * \param copy_pass the SDL_GPUCopyPass to use to upload the loaded image to
+ *                  the GPU texture.
+ * \param src an SDL_IOStream that data will be read from.
+ * \param closeio true to close/free the SDL_IOStream before returning, false
+ *                to leave it open.
+ * \param width a pointer filled in with the width of the GPU texture. may be
+ *              NULL.
+ * \param height a pointer filled in with the width of the GPU texture. may be
+ *               NULL.
+ * \returns a new GPU texture, or NULL on error.
+ *
+ * \since This function is available since SDL_image 3.4.0.
+ *
+ * \sa IMG_LoadGPUTexture
+ * \sa IMG_LoadGPUTextureTyped_IO
+ */
+extern SDL_DECLSPEC SDL_GPUTexture * SDLCALL IMG_LoadGPUTexture_IO(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, SDL_IOStream *src, bool closeio, int *width, int *height);
+
+/**
+ * Load an image from an SDL data source into a GPU texture.
+ *
+ * An SDL_GPUTexture represents an image in GPU memory, usable by SDL's GPU
+ * API. Regardless of the source format of the image, this function will
+ * create a GPU texture with the format SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+ * with no mip levels. It can be bound as a sampled texture from a graphics or
+ * compute pipeline and as a a readonly storage texture in a compute pipeline.
+ *
+ * If `closeio` is true, `src` will be closed before returning, whether this
+ * function succeeds or not. SDL_image reads everything it needs from `src`
+ * during this call in any case.
+ *
+ * Even though this function accepts a file type, SDL_image may still try
+ * other decoders that are capable of detecting file type from the contents of
+ * the image data, but may rely on the caller-provided type string for formats
+ * that it cannot autodetect. If `type` is NULL, SDL_image will rely solely on
+ * its ability to guess the format.
+ *
+ * There is a separate function to read files from disk without having to deal
+ * with SDL_IOStream: `IMG_LoadGPUTexture(device, copy_pass, "filename.jpg",
+ * width, height) will call this function and manage those details for you,
+ * determining the file type from the filename's extension.
+ *
+ * There is also IMG_LoadGPUTexture_IO(), which is equivalent to this function
+ * except that it will rely on SDL_image to determine what type of data it is
+ * loading, much like passing a NULL for type.
+ *
+ * When done with the returned texture, the app should dispose of it with a
+ * call to SDL_ReleaseGPUTexture().
+ *
+ * \param device the SDL_GPUDevice to use to create the GPU texture.
+ * \param copy_pass the SDL_GPUCopyPass to use to upload the loaded image to
+ *                  the GPU texture.
+ * \param src an SDL_IOStream that data will be read from.
+ * \param closeio true to close/free the SDL_IOStream before returning, false
+ *                to leave it open.
+ * \param type a filename extension that represent this data ("BMP", "GIF",
+ *             "PNG", etc).
+ * \param width a pointer filled in with the width of the GPU texture. may be
+ *              NULL.
+ * \param height a pointer filled in with the width of the GPU texture. may be
+ *               NULL.
+ * \returns a new GPU texture, or NULL on error.
+ *
+ * \since This function is available since SDL_image 3.4.0.
+ *
+ * \sa IMG_LoadGPUTexture
+ * \sa IMG_LoadGPUTexture_IO
+ */
+extern SDL_DECLSPEC SDL_GPUTexture * SDLCALL IMG_LoadGPUTextureTyped_IO(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, SDL_IOStream *src, bool closeio, const char *type, int *width, int *height);
 
 /**
  * Get the image currently in the clipboard.
@@ -2898,6 +3027,10 @@ extern SDL_DECLSPEC IMG_AnimationEncoder * SDLCALL IMG_CreateAnimationEncoderWit
 #define IMG_PROP_ANIMATION_ENCODER_CREATE_TIMEBASE_NUMERATOR_NUMBER      "SDL_image.animation_encoder.create.timebase.numerator"
 #define IMG_PROP_ANIMATION_ENCODER_CREATE_TIMEBASE_DENOMINATOR_NUMBER    "SDL_image.animation_encoder.create.timebase.denominator"
 
+#define IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_MAX_THREADS_NUMBER        "SDL_image.animation_encoder.create.avif.max_threads"
+#define IMG_PROP_ANIMATION_ENCODER_CREATE_AVIF_KEYFRAME_INTERVAL_NUMBER  "SDL_image.animation_encoder.create.avif.keyframe_interval"
+#define IMG_PROP_ANIMATION_ENCODER_CREATE_GIF_USE_LUT_BOOLEAN            "SDL_image.animation_encoder.create.gif.use_lut"
+
 /**
  * Add a frame to an animation encoder.
  *
@@ -3063,6 +3196,12 @@ extern SDL_DECLSPEC IMG_AnimationDecoder * SDLCALL IMG_CreateAnimationDecoderWit
 #define IMG_PROP_ANIMATION_DECODER_CREATE_TIMEBASE_NUMERATOR_NUMBER      "SDL_image.animation_decoder.create.timebase.numerator"
 #define IMG_PROP_ANIMATION_DECODER_CREATE_TIMEBASE_DENOMINATOR_NUMBER    "SDL_image.animation_decoder.create.timebase.denominator"
 
+#define IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_MAX_THREADS_NUMBER        "SDL_image.animation_decoder.create.avif.max_threads"
+#define IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_INCREMENTAL_BOOLEAN "SDL_image.animation_decoder.create.avif.allow_incremental"
+#define IMG_PROP_ANIMATION_DECODER_CREATE_AVIF_ALLOW_PROGRESSIVE_BOOLEAN "SDL_image.animation_decoder.create.avif.allow_progressive"
+#define IMG_PROP_ANIMATION_DECODER_CREATE_GIF_TRANSPARENT_COLOR_INDEX_NUMBER "SDL_image.animation_encoder.create.gif.transparent_color_index"
+#define IMG_PROP_ANIMATION_DECODER_CREATE_GIF_NUM_COLORS_NUMBER          "SDL_image.animation_encoder.create.gif.num_colors"
+
 /**
  * Get the properties of an animation decoder.
  *
@@ -3088,6 +3227,7 @@ extern SDL_DECLSPEC SDL_PropertiesID SDLCALL IMG_GetAnimationDecoderProperties(I
 #define IMG_PROP_METADATA_TITLE_STRING                         "SDL_image.metadata.title"
 #define IMG_PROP_METADATA_AUTHOR_STRING                        "SDL_image.metadata.author"
 #define IMG_PROP_METADATA_CREATION_TIME_STRING                 "SDL_image.metadata.creation_time"
+#define IMG_PROP_METADATA_FRAME_COUNT_NUMBER                   "SDL_image.metadata.frame_count"
 #define IMG_PROP_METADATA_LOOP_COUNT_NUMBER                    "SDL_image.metadata.loop_count"
 
 /**
