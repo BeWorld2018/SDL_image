@@ -1,26 +1,91 @@
-# Makefile to build the libSDL3_image.a
+# Makefile for building SDL3_image 3.4.0 (MorphOS)
 #
-# install:
-# you need libpng libwepb libjpeg libtiff
-# make -f makefile.mos				// create libSDL3_image.a (with libpng16, libjpeg, libtiff, libwebp, libwebpdemux, libwebpmus, libsharpyuv) and libSDL3_image_light.a 
-# make -f makefile.mos install		// install SDL3_image to your SDK /gg/usr/local/
+# This Makefile builds two static libraries:
+#   - libSDL3_image_light.a : SDL3_image core, using compile-time enabled loaders
+#   - libSDL3_image.a       : "fat" archive that embeds all enabled external
+#                             image libraries (PNG, JPEG, TIFF, WebP, AVIF…)
+#
+# The build is fully configurable via HAVE_LIB* switches.
+# External libraries are merged using 'ar -M' to avoid object name collisions
+# (required for libraries such as dav1d).
+#
+# ---------------------------------------------------------------------------
+# Installation requirements:
+#
+# You must have the following libraries installed in /gg/usr/local/lib
+# (depending on enabled features):
+#
+#   - libpng16
+#   - libjpeg
+#   - libtiff
+#   - libwebp, libwebpdemux, libwebpmux, libsharpyuv
+#   - libavif, libdav1d, libaom, libyuv   (optional, AVIF support)
+#
+# ---------------------------------------------------------------------------
+# Build examples:
+#
+#   Build with default options:
+#       make -f makefile.mos
+#
+#   Disable AVIF support:
+#       make -f makefile.mos HAVE_LIBAVIF=0
+#
+#   Minimal build (PNG + JPG only):
+#       make -f makefile.mos HAVE_LIBTIF=0 HAVE_LIBWEBP=0 HAVE_LIBAVIF=0
+#
+# ---------------------------------------------------------------------------
+# Install into SDK (/gg/usr/local):
+#
+#   make -f makefile.mos install
+#
+# This installs:
+#   - Headers into /gg/usr/local/include/SDL3_image
+#   - Libraries into /gg/usr/local/lib
+#
 #
 
-CDEFS   = 	-DLOAD_ANI -DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
-			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI \
-			-DSDL_IMAGE_LIBPNG
-			
-# missing : -DLOAD_JXL -DLOAD_AVIF
+CC      = ppc-morphos-gcc-11 
+AR		= ppc-morphos-ar
+RANLIB 	= ppc-morphos-ranlib
+STRIP   = ppc-morphos-strip
 
-CC      = 	ppc-morphos-gcc-11 
+HAVE_LIBPNG 	?= 1
+HAVE_LIBJPG 	?= 1
+HAVE_LIBTIF 	?= 1
+HAVE_LIBWEBP 	?= 1
+HAVE_LIBAVIF 	?= 1
+HAVE_LIBJXL 	?= 0
 
-LIBS_EXT = -L/gg/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16 -ltiff
+CDEFS = \
+	-DLOAD_ANI -DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA \
+	-DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_SVG -DLOAD_QOI
+
+ifeq ($(HAVE_LIBPNG),1)
+CDEFS += -DLOAD_PNG -DSDL_IMAGE_LIBPNG
+endif
+
+ifeq ($(HAVE_LIBJPG),1)
+CDEFS += -DLOAD_JPG
+endif
+
+ifeq ($(HAVE_LIBTIF),1)
+CDEFS += -DLOAD_TIF
+endif
+
+ifeq ($(HAVE_LIBWEBP),1)
+CDEFS += -DLOAD_WEBP
+endif
+
+ifeq ($(HAVE_LIBAVIF),1)
+CDEFS += -DLOAD_AVIF
+endif
+
+ifeq ($(HAVE_LIBJXL),1)
+CDEFS += -DLOAD_JXL
+endif
 
 INCLUDE = -I./include -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include
 CFLAGS  =  -O3 -noixemul $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
-AR		= ppc-morphos-ar
-RANLIB 	= ppc-morphos-ranlib
-
 SDL3_LDFLAGS = -L. -lSDL3_image -L/gg/usr/local/lib -lSDL3_test -lSDL3 -lGL -lm -lpthread
 
 ECHE = echo -e
@@ -32,6 +97,37 @@ LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
 STRIPPING = @$(ECHE) "stripping $(BOLD)$@$(NRML)..."
 ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
 HEADERING = @$(ECHE) "creating headers files $(BOLD)$@$(NRML)..."
+
+MERGE_LIBS =
+
+ifeq ($(HAVE_LIBPNG),1)
+MERGE_LIBS += /gg/usr/local/lib/libpng16.a
+endif
+
+ifeq ($(HAVE_LIBJPG),1)
+MERGE_LIBS += /gg/usr/local/lib/libjpeg.a
+endif
+
+ifeq ($(HAVE_LIBTIF),1)
+MERGE_LIBS += /gg/usr/local/lib/libtiff.a
+endif
+
+ifeq ($(HAVE_LIBWEBP),1)
+MERGE_LIBS += \
+	/gg/usr/local/lib/libwebp.a \
+	/gg/usr/local/lib/libwebpdemux.a \
+	/gg/usr/local/lib/libwebpmux.a \
+	/gg/usr/local/lib/libsharpyuv.a
+endif
+
+ifeq ($(HAVE_LIBAVIF),1)
+MERGE_LIBS += \
+	/gg/usr/local/lib/libavif.a \
+	/gg/usr/local/lib/libdav1d.a \
+	/gg/usr/local/lib/libaom.a \
+	/gg/usr/local/lib/libyuv.a
+endif
+
 
 TARGET  = libSDL3_image_light.a
 
@@ -56,62 +152,60 @@ SOURCES = \
 	src/IMG_tga.c	\
 	src/IMG_tif.c	\
 	src/IMG_xcf.c	\
-	src/IMG_xpm.c	\
-	src/IMG_xv.c	\
 	src/IMG_webp.c	\
-	src/IMG_WIC.c 	\
-	src/IMG_xcf.c 	\
 	src/IMG_xpm.c	\
 	src/xmlman.c	\
 	src/IMG_xv.c	\
 	src/IMG_xxx.c
 
-OBJECTS = $(shell echo $(SOURCES) | sed -e 's,\.c,\.o,g')
+OBJECTS = $(SOURCES:.c=.o)
 
 all: $(TARGET) withall testimage testanimation showanim showimage showclipboard
 
-# install SDL3_image to your SDK: /gg/usr/local/
-install:
-	mkdir -p /gg/usr/local/include/SDL3
-	mkdir -p /gg/usr/local/lib
-	cp -r include/SDL3_image /gg/usr/local/include/
-	cp libSDL3_image_light.a /gg/usr/local/lib/libSDL3_image_light.a
-	cp libSDL3_image.a /gg/usr/local/lib/libSDL3_image.a
+# Build the full "fat" SDL3_image archive with all enabled external libraries
+withall: libSDL3_image.a
 
-# build a new SDL3_image (full) with all external lib include
-withall:
-	mkdir -p external-obj && \
-	cd external-obj && \
-	$(AR) x /gg/usr/local/lib/libpng16.a && \
-	$(AR) x /gg/usr/local/lib/libwebp.a && \
-	$(AR) x /gg/usr/local/lib/libwebpdemux.a && \
-	$(AR) x /gg/usr/local/lib/libwebpmux.a && \
-	$(AR) x /gg/usr/local/lib/libsharpyuv.a && \
-	$(AR) x /gg/usr/local/lib/libjpeg.a && \
-	$(AR) x /gg/usr/local/lib/libtiff.a && \
-	$(AR) x ../libSDL3_image_light.a && \
-	$(AR) rcs ../libSDL3_image.a *.o  && \
-	$(RANLIB) ../libSDL3_image.a  && \
-	rm -rf *.o ../external-obj # Clean up object files
-
+libSDL3_image.a: libSDL3_image_light.a
+	@rm -f $@ merge.mri
+	@echo "CREATE $@" > merge.mri
+	@echo "ADDLIB libSDL3_image_light.a" >> merge.mri
+	@for L in $(MERGE_LIBS); do echo "ADDLIB $$L" >> merge.mri; done
+	@echo "SAVE" >> merge.mri
+	@echo "END" >> merge.mri
+	$(AR) -M < merge.mri
+	$(RANLIB) $@
+	
 $(TARGET): $(OBJECTS)
 	$(ARCHIVING)
 	@$(AR) crvs $@ $^
 
 testimage: test/testimage.c
 	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
+	$(STRIP) --strip-unneeded $@
 
 testanimation: test/testanimation.c
 	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
+	$(STRIP) --strip-unneeded $@
 
 showanim: examples/showanim.c
 	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
+	$(STRIP) --strip-unneeded $@
 
 showimage: examples/showimage.c
 	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
+	$(STRIP) --strip-unneeded $@
 
 showclipboard: examples/showclipboard.c
 	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
+	$(STRIP) --strip-unneeded $@
+
+# Install headers and libraries into the MorphOS SDK (/gg/usr/local)
+install:
+	mkdir -p /gg/usr/local/include/SDL3
+	mkdir -p /gg/usr/local/lib
+	cp -r include/SDL3_image /gg/usr/local/include/
+	cp libSDL3_image_light.a /gg/usr/local/lib/libSDL3_image_light.a
+	cp libSDL3_image.a /gg/usr/local/lib/libSDL3_image.a
 
 clean:
 	rm -f *.a $(OBJECTS) $(COREOBJECTS) *.s showimage showanim testimage testanimation showclipboard
