@@ -96,7 +96,7 @@ $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
 testimage: test/main.c
-	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2 -lGL
+	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -L../SDL-release-2.32.x-MOS/test -lSDL2test -lSDL2 -lGL
 
 showanim: examples/showanim.c
 	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -lSDL2 -lGL
