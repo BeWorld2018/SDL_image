@@ -33,21 +33,21 @@ lib/$(TARGET): sdl-startup.o ../sdk/fd/sdl2_image_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --gluelib=$@
+	@/gg/bin/cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --gluelib=$@
 	@$(AR) crus $@ sdl-startup.o
 
 lib/libb32/$(TARGET): sdl-startup-brel.o  ../sdk/fd/sdl2_image_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib/libb32
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --brelgluelib=$@
+	@/gg/bin/cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --brelgluelib=$@
 	@$(AR) crus $@ sdl-startup-brel.o
 
 lib/libb32/libSDL2_image-nc.a: sdl-startup-brel-nc.o ../sdk/fd/sdl2_image_lib.fd
 	$(ARCHIVING)
 	@mkdir -p lib/libb32
 	@-rm -f $@
-	@cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --brelgluelib=$@
+	@/gg/bin/cvinclude.pl --fd ../sdk/fd/sdl2_image_lib.fd --clib ../sdk/clib/sdl2_image_protos.h --brelgluelib=$@
 	@$(AR) crus $@ sdl-startup-brel-nc.o
 
 clean:

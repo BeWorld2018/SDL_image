@@ -12,7 +12,7 @@ CC      = 	ppc-morphos-gcc-9 -noixemul
 
 LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16
 
-INCLUDE = -I./include -I/usr/local/include/SDL2  -I/usr/local/include
+INCLUDE = -I./include -I/usr/local/include/SDL2  -I/gg/usr/local/include
 CFLAGS  = -mcpu=750 -mtune=7450 -O3 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
 AR	= ppc-morphos-ar
 
@@ -65,28 +65,21 @@ sdklibs:
 	@cd MorphOS/devenv; if ! $(MAKE) all; then exit 1; fi;
 
 sdk: sdklibs
-	mkdir -p /usr/local/include/SDL2
-	mkdir -p /usr/local/lib
-	mkdir -p /usr/local/lib/libb32
-	cp include/SDL_image.h /usr/local/include/SDL2/SDL_image.h
-	cp MorphOS/devenv/lib/libSDL2_image.a  /usr/local/lib/libSDL2_image.a
-	cp MorphOS/devenv/lib/libb32/libSDL2_image.a  /usr/local/lib/libb32/libSDL2_image.a
+	mkdir -p /gg/usr/local/include/SDL2
+	mkdir -p /gg/usr/local/lib
+	mkdir -p /gg/usr/local/lib/libb32
+	cp include/SDL_image.h /gg/usr/local/include/SDL2/SDL_image.h
+	cp MorphOS/devenv/lib/libSDL2_image.a /gg/usr/local/lib/libSDL2_image.a
+	cp MorphOS/devenv/lib/libb32/libSDL2_image.a /gg/usr/local/lib/libb32/libSDL2_image.a
 
 headers:
 	$(HEADERING)
-	@cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --proto=MorphOS/sdk/proto/sdl2_image.h
-	@cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --inline=MorphOS/sdk/ppcinline/sdl2_image.h
+	/gg/bin/cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --proto=MorphOS/sdk/proto/sdl2_image.h
+	/gg/bin/cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --inline=MorphOS/sdk/ppcinline/sdl2_image.h
 	
 install: $(LIBRARY)
 	@cp $(LIBRARY) LIBS:
 	-flushlib $(LIBRARY)
-
-#install-iso: $(LIBRARY)
-#	mkdir -p $(ISOPATH)MorphOS/Libs/
-#	@cp $(LIBRARY) $(ISOPATH)MorphOS/Libs/
-
-install-iso:
-	@echo "not for the ISO.. skipping"
 
 MorphOS/IMG_library.o: MorphOS/IMG_library.c MorphOS/IMG_library.h MorphOS/IMG_stubs.h
 	$(COMPILING)
@@ -98,18 +91,18 @@ $(TARGET): $(OBJECTS)
 
 $(LIBRARY): $(TARGET) $(COREOBJECTS)
 	$(LINKING)
-	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/usr/local/lib -lSDL2 -lGL $(LIBS_EXT) -lm
+	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/gg/usr/local/lib -lSDL2 -lGL $(LIBS_EXT) -lm
 	$(STRIPPING)
 	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
 
 testimage: test/main.c
-	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2 -lGL
+	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -L../SDL-MorphOS-SDL-2.28.x/test -lSDL2test -lSDL2 -lGL
 
 showanim: examples/showanim.c
-	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2 -lGL
+	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -lSDL2 -lGL
 
 showimage: examples/showimage.c
-	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/usr/local/lib -lSDL2_image -lSDL2 -lGL
+	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -lSDL2 -lGL
 
 clean:
 	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s
