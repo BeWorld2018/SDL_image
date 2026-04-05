@@ -9,7 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 # See docs/release_checklist.md
 set(MAJOR_VERSION 3)
 set(MINOR_VERSION 4)
-set(MICRO_VERSION 1)
+set(MICRO_VERSION 3)
 set(SDL_REQUIRED_VERSION 3.4.0)
 
 project(SDL3_image
@@ -905,6 +905,9 @@ if(SDLIMAGE_PNG)
                 if(SDLIMAGE_PNG_VENDORED)
                     add_dependencies(${sdl3_image_target_name} ${png_target})
                 endif()
+            else()
+              # target_get_dynamic_library will ignore target
+              set(png_target dont_care)
             endif()
             target_get_dynamic_library(SDLIMAGE_DYNAMIC_PNG ${png_target})
             message(STATUS "Dynamic libpng: ${SDLIMAGE_DYNAMIC_PNG}")
@@ -1042,6 +1045,9 @@ if(SDLIMAGE_TIF)
                     if(SDLIMAGE_TIF_VENDORED)
                       add_dependencies(${sdl3_image_target_name} ${SDLIMAGE_TIF_TARGET})
                     endif()
+                else()
+                    # target_get_dynamic_library will ignore target
+                    set(SDLIMAGE_TIF_TARGET dont_care)
                 endif()
                 target_get_dynamic_library(SDLIMAGE_DYNAMIC_TIF ${SDLIMAGE_TIF_TARGET})
                 message(STATUS "Dynamic libtiff: ${SDLIMAGE_DYNAMIC_TIF}")
