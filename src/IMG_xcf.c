@@ -237,6 +237,13 @@ static char *read_string(SDL_IOStream *src)
     char *data = NULL;
 
     if (SDL_ReadU32BE(src, &tmp)) {
+        if (tmp == 0) {
+            data = (char *) SDL_malloc(1);
+            if (data) {
+                data[0] = 0;
+            }
+            return data;
+        }
         remaining = SDL_GetIOSize(src) - SDL_TellIO(src);
         if (tmp <= remaining) {
             data = (char *)SDL_malloc(tmp);
@@ -631,6 +638,11 @@ static unsigned char *load_xcf_tile_rle(SDL_IOStream *src, size_t len, int bpp, 
     }
 
     data = (unsigned char *)SDL_calloc(1, x*y*bpp);
+    if (!data) {
+        SDL_free(load);
+        return NULL;
+    }
+    unsigned char *data_end = data + x*y*bpp;
     for (i = 0; i < bpp; i++) {
         d = data + i;
         size = x*y;
@@ -655,6 +667,9 @@ static unsigned char *load_xcf_tile_rle(SDL_IOStream *src, size_t len, int bpp, 
                 size -= length;
 
                 while (length-- > 0) {
+                    if (d >= data_end) {
+                        break;
+                    }
                     *d = *t++;
                     d += bpp;
                 }
@@ -676,6 +691,9 @@ static unsigned char *load_xcf_tile_rle(SDL_IOStream *src, size_t len, int bpp, 
                 val = *t++;
 
                 for (j = 0; j < length; j++) {
+                    if (d >= data_end) {
+                        break;
+                    }
                     *d = val;
                     d += bpp;
                 }
@@ -733,6 +751,10 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
         return 1;
     }
     hierarchy = read_xcf_hierarchy(src, head);
+    if (!hierarchy) {
+        SDL_SetError("Failed to read XCF image hierarchy");
+        return 1;
+    }
 
     if (hierarchy->bpp > 4) {  /* unsupported. */
         SDL_SetError("Unknown Gimp image bpp (%u)", (unsigned int) hierarchy->bpp);
@@ -782,6 +804,16 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
 
             p8 = tile;
             p = (Uint32 *) p8;
+
+            /* Bounds check: reject layer if tile data exceeds buffer */
+            if ((Uint64)ox * oy * hierarchy->bpp > (Uint64)(hierarchy->width * hierarchy->height * hierarchy->bpp)) {
+                SDL_SetError("Gimp image invalid tile");
+                free_xcf_tile(tile);
+                free_xcf_level(level);
+                free_xcf_hierarchy(hierarchy);
+                return 1;
+            }
+
             for (y = ty; y < ty + oy; y++) {
                 if ((y >= (Uint32)surface->h) || ((tx+ox) > (Uint32)surface->w)) {
                     break;

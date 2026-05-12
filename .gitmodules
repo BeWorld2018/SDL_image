@@ -5,7 +5,7 @@
 [submodule "external/libpng"]
 	path = external/libpng
 	url = https://github.com/libsdl-org/libpng.git
-	branch = v1.6.56-SDL
+	branch = v1.6.58-SDL
 [submodule "external/libwebp"]
 	path = external/libwebp
 	url = https://github.com/libsdl-org/libwebp.git
@@ -25,7 +25,7 @@
 [submodule "external/libavif"]
 	path = external/libavif
 	url = https://github.com/libsdl-org/libavif.git
-	branch = v1.0.4-SDL
+	branch = v1.1.1-SDL
 [submodule "external/dav1d"]
 	path = external/dav1d
 	url = https://github.com/libsdl-org/dav1d.git
