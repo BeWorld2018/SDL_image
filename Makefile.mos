@@ -10,9 +10,9 @@ CC      = 	ppc-morphos-gcc-9 -noixemul
 
 # TODO: -DLOAD_JXL -DLOAD_AVIF 
 
-LIBS_EXT = -L/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16
+LIBS_EXT = -L/gg/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16
 
-INCLUDE = -I./include -I/usr/local/include/SDL2  -I/gg/usr/local/include
+INCLUDE = -I./include -I/gg/usr/local/include/SDL2  -I/gg/usr/local/include
 CFLAGS  = -mcpu=750 -mtune=7450 -O3 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
 AR	= ppc-morphos-ar
 
