@@ -245,7 +245,7 @@ static char *read_string(SDL_IOStream *src)
             return data;
         }
         remaining = SDL_GetIOSize(src) - SDL_TellIO(src);
-        if (tmp <= remaining) {
+        if ((Sint32)tmp > 0 && tmp <= remaining) {
             data = (char *)SDL_malloc(tmp);
             if (data) {
                 if (SDL_ReadIO(src, data, tmp) == tmp) {

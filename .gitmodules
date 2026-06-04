@@ -33,4 +33,4 @@
 [submodule "external/aom"]
 	path = external/aom
 	url = https://github.com/libsdl-org/aom.git
-	branch = v3.6.1-SDL
+	branch = v3.6.x-SDL

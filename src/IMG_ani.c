@@ -328,6 +328,9 @@ static bool ParseList(IMG_AnimationParseContext *parse, Uint32 size)
         return ParseFrameList(parse, size);
     } else {
         // Unknown list chunk, ignore it
+        if (SDL_SeekIO(src, size, SDL_IO_SEEK_CUR) < 0) {
+            return false;
+        }
         return true;
     }
 }
@@ -344,6 +347,9 @@ static bool ParseSequenceChunk(IMG_AnimationParseContext *parse, Uint32 size)
 
     if (!(anih->fl & ANI_FLAG_SEQUENCE)) {
         // The header says we don't use sequence data, ignore it
+        if (SDL_SeekIO(src, size, SDL_IO_SEEK_CUR) < 0) {
+            return false;
+        }
         return true;
     }
 
@@ -417,7 +423,7 @@ bool IMG_CreateANIAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Properties
         Uint32 size;
         if (!SDL_ReadU32LE(decoder->src, &chunk) ||
             !SDL_ReadU32LE(decoder->src, &size)) {
-            goto done;
+            break;
         }
         offset += 8;
 
@@ -454,6 +460,12 @@ bool IMG_CreateANIAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Properties
             }
         }
         offset += size;
+    }
+
+    // Make sure we have a valid animation
+    if (!parse.has_anih) {
+        SDL_SetError("Incomplete ANI data");
+        goto done;
     }
 
     decoder->GetNextFrame = IMG_AnimationDecoderGetNextFrame_Internal;
