@@ -343,21 +343,15 @@ IMG_Animation *IMG_LoadWEBPAnimation_RW(SDL_RWops *src)
         goto error;
     }
 
-    /* Background color is BGRA byte order according to the spec */
+    /* Background color is BGRA byte order according to the spec. libwebp
+       reads it with a portable little-endian load, so the value is
+       0xAARRGGBB on every host: no big-endian special case. */
     bgcolor = lib.WebPDemuxGetI(demuxer, WEBP_FF_BACKGROUND_COLOR);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-    bgcolor = SDL_MapRGBA(canvas->format,
-                          (bgcolor >> 8) & 0xFF,
-                          (bgcolor >> 16) & 0xFF,
-                          (bgcolor >> 24) & 0xFF,
-                          (bgcolor >> 0) & 0xFF);
-#else
     bgcolor = SDL_MapRGBA(canvas->format,
                           (bgcolor >> 16) & 0xFF,
                           (bgcolor >> 8) & 0xFF,
                           (bgcolor >> 0) & 0xFF,
                           (bgcolor >> 24) & 0xFF);
-#endif
 
     /* Initialize canvas - use bgcolor for non-alpha format, transparency for alpha */
     if (features.has_alpha) {

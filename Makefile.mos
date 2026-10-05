@@ -26,7 +26,8 @@ OBJDUMP = ppc-morphos-objdump
 # TODO: LOAD_JXL LOAD_AVIF
 FORMATS = BMP GIF JPG LBM PCX PNG PNM QOI SVG TGA TIF WEBP XCF XPM XV
 
-COMMONDEFS = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D_NO_PPCINLINE
+GLUEDEFS   = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG
+COMMONDEFS = $(GLUEDEFS) -D_NO_PPCINLINE
 
 ifeq ($(JPGPNG),shared)
 BACKENDDEFS = -DUSE_SHAREDLIB_JPEG -DUSE_SHAREDLIB_PNG -DUSE_SHAREDLIB_TIF
@@ -114,10 +115,12 @@ MorphOS/%.o: MorphOS/%.c $(BUILDSTAMP)
 	$(COMPILING)
 	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
 
-# The library glue isn't resident code: it runs before r13 is set up
+# The library glue isn't resident code: it runs before r13 is set up.
+# No -D_NO_PPCINLINE here: exec calls must stay inline, the libabox stubs
+# linked with -mresident32 load SysBase through r13.
 MorphOS/IMG_library.o: MorphOS/IMG_library.c $(BUILDSTAMP)
 	$(COMPILING)
-	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(COMMONDEFS) $(BACKENDDEFS) \
+	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(GLUEDEFS) $(BACKENDDEFS) \
 		-D__AMIGADATE__=\"$(AMIGADATE)\" $(DEPFLAGS) -o $@ -c $<
 
 $(TARGET): $(OBJECTS)

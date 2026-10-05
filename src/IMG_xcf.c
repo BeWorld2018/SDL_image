@@ -262,14 +262,6 @@ static Uint64 read_offset (SDL_RWops * src, const xcf_header * h) {
 }
 
 
-static Uint32 Swap32 (Uint32 v) {
-  return
-    ((v & 0x000000FF) << 16)
-    |  ((v & 0x0000FF00))
-    |  ((v & 0x00FF0000) >> 16)
-    |  ((v & 0xFF000000));
-}
-
 static int xcf_read_property (SDL_RWops * src, xcf_prop * prop) {
   Uint32 len;
   prop->id = SDL_ReadBE32 (src);
@@ -658,7 +650,6 @@ do_layer_surface(SDL_Surface * surface, SDL_RWops * src, xcf_header * head, xcf_
     xcf_level      *level;
     unsigned char  *tile;
     Uint8          *p8;
-    Uint32         *p;
     int            i, j;
     Uint32         x, y, tx, ty, ox, oy;
     Uint32         *row;
@@ -714,7 +705,6 @@ do_layer_surface(SDL_Surface * surface, SDL_RWops * src, xcf_header * head, xcf_
             }
 
             p8 = tile;
-            p = (Uint32 *) p8;
 
             /* Bounds check: reject layer if tile data exceeds buffer */
             if ((Uint64)ox * oy * hierarchy->bpp > (Uint64)(hierarchy->width * hierarchy->height * hierarchy->bpp)) {
@@ -732,8 +722,14 @@ do_layer_surface(SDL_Surface * surface, SDL_RWops * src, xcf_header * head, xcf_
                 row = (Uint32 *) ((Uint8 *) surface->pixels + y * surface->pitch + tx * 4);
                 switch (hierarchy->bpp) {
                 case 4:
-                    for (x = tx; x < tx + ox; x++)
-                        *row++ = Swap32(*p++);
+                    /* RGBA bytes -> ARGB8888, independent of the host byte order */
+                    for (x = tx; x < tx + ox; x++) {
+                        *row++ = ((Uint32)p8[3] << 24) |
+                                 ((Uint32)p8[0] << 16) |
+                                 ((Uint32)p8[1] << 8) |
+                                 ((Uint32)p8[2] << 0);
+                        p8 += 4;
+                    }
                     break;
                 case 3:
                     for (x = tx; x < tx + ox; x++) {

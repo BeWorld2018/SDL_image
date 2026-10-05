@@ -306,7 +306,8 @@ LoadICOCUR_RW(SDL_RWops * src, int type, int freesrc)
             goto done;
         }
         for (i = 0; i < (int) biClrUsed; ++i) {
-            SDL_RWread(src, &palette[i], 4, 1);
+            /* B, G, R, reserved bytes: 0x00RRGGBB on every host */
+            palette[i] = SDL_ReadLE32(src);
 
             /* Since biSize == 40, we know alpha is reserved and should be zero, meaning opaque */
             if ((palette[i] & 0xFF000000) == 0) {
@@ -388,6 +389,12 @@ LoadICOCUR_RW(SDL_RWops * src, int type, int freesrc)
                 was_error = SDL_TRUE;
                 goto done;
             }
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+            /* BGRA bytes are ARGB8888 only on little-endian hosts */
+            for (i = 0; i < surface->w; ++i) {
+                ((Uint32 *) bits)[i] = SDL_Swap32(((Uint32 *) bits)[i]);
+            }
+#endif
             break;
         }
         /* Skip padding bytes, ugh */
