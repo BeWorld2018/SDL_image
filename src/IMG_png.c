@@ -53,10 +53,19 @@
 #ifdef macintosh
 #define MACOS
 #endif
-#if !defined(__MORPHOS__) || defined( __MORPHOS_SHAREDLIBS)
-#include <png.h>
-#else
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG)
+/* png.library (libpng 1.2 API). Include the os-include headers directly:
+   /gg/usr/local/include/png.h (libpng16) would shadow the SDK wrapper.
+   Functions are plain (sysv), resolved by the libaboxstubs glue through
+   PNGBase (opened in MorphOS/IMG_library.c). */
+#include <libraries/png.h>
+#include <proto/png.h>
+/* png.library longjmp()s with longjmp59() into png_ptr->jmpbuf59 */
+extern int setjmp59(int *env) __attribute__((returns_twice));
+#elif defined(__MORPHOS__)
 #include <png16.h>
+#else
+#include <png.h>
 #endif
 
 /* Check for the older version of libpng */
@@ -148,6 +157,11 @@ int IMG_InitPNG()
         lib.handle = SDL_LoadObject(LOAD_PNG_DYNAMIC);
         if ( lib.handle == NULL ) {
             return -1;
+        }
+#endif
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG)
+        if (PNGBase == NULL) {
+            return IMG_SetError("png.library V51+ is not available");
         }
 #endif
         FUNCTION_LOADER(png_create_info_struct, png_infop (*) (png_noconst15_structrp png_ptr))
@@ -280,7 +294,7 @@ static SDL_bool LIBPNG_LoadPNG_RW(SDL_RWops *src, struct loadpng_vars *vars)
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(vars->png_ptr, longjmp, sizeof(jmp_buf))))
 #else
-#if __MORPHOS__ &&  _JBLEN != 59 && __MORPHOS_SHAREDLIBS
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG) && _JBLEN != 59
 	  if (setjmp59(vars->png_ptr->jmpbuf59))
 #else
     if (setjmp(vars->png_ptr->jmpbuf))
@@ -627,7 +641,7 @@ static int LIBPNG_SavePNG_RW(struct savepng_vars *vars, SDL_Surface *surface, SD
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(vars->png_ptr, longjmp, sizeof (jmp_buf))))
 #else
-#if __MORPHOS__ &&  _JBLEN != 59 && __MORPHOS_SHAREDLIBS
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG) && _JBLEN != 59
 	  if (setjmp59(vars->png_ptr->jmpbuf59))
 #else
     if (setjmp(vars->png_ptr->jmpbuf))
@@ -716,7 +730,7 @@ static int IMG_SavePNG_RW_libpng(SDL_Surface *surface, SDL_RWops *dst)
     struct savepng_vars vars;
     int ret;
 
-    if (!IMG_Init(IMG_INIT_PNG)) {
+    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
         return -1;
     }
 

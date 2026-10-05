@@ -11,21 +11,14 @@
 #define SDL2_IMAGE_BASE_NAME SDL2ImageBase
 #endif /* !SDL2_IMAGE_BASE_NAME */
 
-#define IMG_Linked_Version() \
-	({ \
-		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
-		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
-		(((const SDL_version *(*)(void))*(void**)(__base - 232))());\
-	})
-
 #define IMG_LoadTyped_RW(__p0, __p1, __p2) \
 	({ \
 		SDL_RWops * __t__p0 = __p0;\
 		int  __t__p1 = __p1;\
-		char * __t__p2 = __p2;\
+		const char * __t__p2 = __p2;\
 		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
 		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
-		(((SDL_Surface *(*)(SDL_RWops *, int , char *))*(void**)(__base - 28))(__t__p0, __t__p1, __t__p2));\
+		(((SDL_Surface *(*)(SDL_RWops *, int , const char *))*(void**)(__base - 28))(__t__p0, __t__p1, __t__p2));\
 	})
 
 #define IMG_Load(__p0) \
@@ -300,6 +293,13 @@
 		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
 		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
 		(((SDL_Surface *(*)(char **))*(void**)(__base - 226))(__t__p0));\
+	})
+
+#define IMG_Linked_Version() \
+	({ \
+		long __base = (long)(SDL2_IMAGE_BASE_NAME);\
+		__asm volatile("mr 12,%0": :"r"(__base):"r12");\
+		(((const SDL_version *(*)(void))*(void**)(__base - 232))());\
 	})
 
 #define IMG_Init(__p0) \

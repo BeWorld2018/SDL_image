@@ -17,10 +17,15 @@ STATIC CONST TEXT libname[] = "sdl2_image.library";
 
 struct ExecBase   *SysBase  = NULL;
 struct DosLibrary *DOSBase  = NULL;
-//struct Library    *SDL2Base = NULL;
-//struct Library    *JFIFBase = NULL;
-//struct Library    *PNGBase  = NULL;
+#ifdef USE_SHAREDLIB_JPEG
+struct Library    *JFIFBase = NULL;
+#endif
+#ifdef USE_SHAREDLIB_PNG
+struct Library    *PNGBase  = NULL;
+#endif
+#ifdef USE_SHAREDLIB_TIF
 struct Library    *TIFFBase = NULL;
+#endif
 struct Library    *SDL2ImageBase = NULL;
 
 /**********************************************************************
@@ -127,15 +132,38 @@ static BPTR DeleteLib(struct SDL2ImageLibrary *LibBase, struct ExecBase *SysBase
 
 static void UserLibClose(struct SDL2ImageLibrary *LibBase, struct ExecBase *SysBase)
 {
-	//CloseLibrary(SDL2Base);
-	//CloseLibrary(JFIFBase);
-	//CloseLibrary(PNGBase);
+#ifdef USE_SHAREDLIB_JPEG
+	CloseLibrary(JFIFBase);
+	JFIFBase = NULL;
+#endif
+#ifdef USE_SHAREDLIB_PNG
+	CloseLibrary(PNGBase);
+	PNGBase = NULL;
+#endif
+#ifdef USE_SHAREDLIB_TIF
 	CloseLibrary(TIFFBase);
-
-	//SDL2Base = NULL;
-	//JFIFBase = NULL;
-	//PNGBase = NULL;
 	TIFFBase = NULL;
+#endif
+}
+
+/**********************************************************************
+	UserLibOpen
+
+	The codec libraries are optional: if one is missing, only the
+	matching format is unavailable (IMG_InitJPG/PNG/TIF() fail).
+**********************************************************************/
+
+static void UserLibOpen(struct SDL2ImageLibrary *LibBase, struct ExecBase *SysBase)
+{
+#ifdef USE_SHAREDLIB_JPEG
+	JFIFBase = OpenLibrary("jfif.library", 0);
+#endif
+#ifdef USE_SHAREDLIB_PNG
+	PNGBase  = OpenLibrary("png.library", 51);
+#endif
+#ifdef USE_SHAREDLIB_TIF
+	TIFFBase = OpenLibrary("tiff.library", 0);
+#endif
 }
 
 /**********************************************************************
@@ -228,17 +256,10 @@ struct Library *LIB_Open(void)
 
 	if (LibBase->Alloc == 0)
 	{
-		if (/*((SDL2Base = OpenLibrary("sdl2.library",  0)) != NULL)
-		 && ((JFIFBase = OpenLibrary("jfif.library",  0)) != NULL)
-		 && ((PNGBase  = OpenLibrary("png.library" , 51)) != NULL)
-		 && */((TIFFBase = OpenLibrary("tiff.library",  0)) != NULL))
-		{
-			LibBase->Alloc = 1;
-		}
-		else
-		{
-			goto error;
-		}
+		/* Opened once by the parent, the bases are copied into every child
+		   data segment below. */
+		UserLibOpen(LibBase, SysBase);
+		LibBase->Alloc = 1;
 	}
 
 	if ((newbase = AllocVecTaskPooled(MyBaseSize + LibBase->DataSize + 15)) != NULL)
@@ -305,10 +326,6 @@ error:
 **********************************************************************/
 
 #include "IMG_stubs.h"
-
-extern void LIB_InitTGL();
-extern void LIB_SetExitPointer();
-extern void LIB_SDL_VSetError();
 
 static const APTR FuncTable[] =
 {

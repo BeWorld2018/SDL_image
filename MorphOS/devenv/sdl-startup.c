@@ -27,6 +27,15 @@ static CONSTRUCTOR_P(init_SDL2ImageBase, 101)
 {
 	static const char libname[] = "sdl2_image.library";
 	struct Library *base = OpenLibrary((STRPTR)libname, VERSION);
+
+	/* Functions are added without bumping VERSION: an older 53.x would
+	   lack the vectors this program was linked against. */
+	if (base && !LIB_MINVER(base, VERSION, REVISION))
+	{
+		CloseLibrary(base);
+		base = NULL;
+	}
+
 	SDL2ImageBase = base;
 
 	if (base == NULL)

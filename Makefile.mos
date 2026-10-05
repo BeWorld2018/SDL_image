@@ -1,20 +1,57 @@
-# Makefile to build the SDL2_image library
+# Makefile to build sdl2_image.library for MorphOS
+#
+#   make -f Makefile.mos                  library + SDK glue libraries
+#   make -f Makefile.mos JPGPNG=stb       other JPEG/PNG backend (see below)
+#   make -f Makefile.mos sdk              install header + glue libs in $(PREFIX)
+#   make -f Makefile.mos install          copy the library to LIBS:
+#
+# JPEG/PNG backend, JPGPNG=
+#   shared  (default) MorphOS system libraries, built with
+#             -DUSE_SHAREDLIB_JPEG  jfif.library
+#             -DUSE_SHAREDLIB_PNG   png.library V51
+#             -DUSE_SHAREDLIB_TIF   tiff.library
+#           They are opened by sdl2_image.library and are optional: if one
+#           is missing, only that format fails.
+#   stb     built-in stb_image decoder for JPEG/PNG, saving with
+#           miniz / tiny_jpeg. TIFF still uses tiff.library.
 
-# use -DUSE_SHAREDLIB_JPEG to use shared lib and delete -ljpeg
+JPGPNG ?= shared
 
-CDEFS   = 	-DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D_NO_PPCINLINE  \
-			-DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA -DLOAD_XCF -DLOAD_XPM \
-			-DLOAD_JPG -DLOAD_PNG -DLOAD_TIF -DLOAD_XV -DLOAD_SVG -DLOAD_WEBP -DLOAD_QOI -DUSE_STBIMAGE -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_JPG=1
-		
-CC      = 	ppc-morphos-gcc-9 -noixemul
+PREFIX  = /gg/usr/local
+CC      = ppc-morphos-gcc-9
+AR      = ppc-morphos-ar
+STRIP   = ppc-morphos-strip
+OBJDUMP = ppc-morphos-objdump
 
-# TODO: -DLOAD_JXL -DLOAD_AVIF 
+# TODO: LOAD_JXL LOAD_AVIF
+FORMATS = BMP GIF JPG LBM PCX PNG PNM QOI SVG TGA TIF WEBP XCF XPM XV
 
-LIBS_EXT = -L/gg/usr/local/lib -lwebp -lwebpdemux -ljpeg -lpng16
+COMMONDEFS = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG -D_NO_PPCINLINE
 
-INCLUDE = -I./include -I/gg/usr/local/include/SDL2  -I/gg/usr/local/include
-CFLAGS  = -mcpu=750 -mtune=7450 -O3 $(INCLUDE) -mresident32 -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
-AR	= ppc-morphos-ar
+ifeq ($(JPGPNG),shared)
+BACKENDDEFS = -DUSE_SHAREDLIB_JPEG -DUSE_SHAREDLIB_PNG -DUSE_SHAREDLIB_TIF
+# Only jpeg_std_error()/png_init_io() live there and neither is used by the
+# library: the jpeg_* / png_* calls go through the libaboxstubs glue.
+BACKENDLIBS = -ljpeg_shared -lpng_shared
+else ifeq ($(JPGPNG),stb)
+BACKENDDEFS = -DUSE_STBIMAGE -DUSE_SHAREDLIB_TIF
+BACKENDLIBS =
+else
+$(error JPGPNG must be shared or stb (got "$(JPGPNG)"))
+endif
+
+CDEFS = $(COMMONDEFS) $(BACKENDDEFS) $(addprefix -DLOAD_,$(FORMATS)) \
+        -DSDL_IMAGE_SAVE_PNG=1 -DSDL_IMAGE_SAVE_JPG=1
+
+INCLUDE = -I./include -I$(PREFIX)/include/SDL2 -I$(PREFIX)/include
+CFLAGS  = -noixemul -mcpu=750 -mtune=7450 -O3 -mresident32 \
+          -Wall -Wno-pointer-sign -fno-strict-aliasing -fomit-frame-pointer \
+          $(INCLUDE) $(CDEFS)
+DEPFLAGS = -MMD -MP
+
+# -lGL: libSDL2.a(sdl-startup-brel.o) is needed for the varargs wrappers
+# (SDL_SetError, SDL_sscanf, SDL_snprintf...) and references TinyGL.
+LIBS = -L$(PREFIX)/lib -lSDL2 -lGL -lwebp -lwebpdemux $(BACKENDLIBS) -lm
 
 AMIGADATE = $(shell date +"%-d.%-m.%Y")
 
@@ -23,7 +60,7 @@ BOLD = \033[1m
 NRML = \033[22m
 
 COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
-LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
+LINKING   = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
 STRIPPING = @$(ECHE) "stripping $(BOLD)$@$(NRML)..."
 ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
 HEADERING = @$(ECHE) "creating headers files $(BOLD)$@$(NRML)..."
@@ -32,81 +69,115 @@ TARGET  = libSDL2_image.a
 LIBRARY = sdl2_image.library
 
 SOURCES = \
-	src/IMG.c		\
-	src/IMG_avif.c	\
-	src/IMG_bmp.c	\
-	src/IMG_gif.c	\
-	src/IMG_jpg.c	\
-	src/IMG_jxl.c	\
-	src/IMG_lbm.c	\
-	src/IMG_pcx.c	\
-	src/IMG_png.c	\
-	src/IMG_pnm.c	\
-	src/IMG_qoi.c	\
-	src/IMG_stb.c	\
-	src/IMG_svg.c	\
-	src/IMG_tga.c	\
-	src/IMG_tif.c	\
-	src/IMG_xcf.c	\
-	src/IMG_xpm.c	\
-	src/IMG_xv.c	\
-	src/IMG_webp.c	\
-	src/IMG_WIC.c 	\
+	src/IMG.c       \
+	src/IMG_avif.c  \
+	src/IMG_bmp.c   \
+	src/IMG_gif.c   \
+	src/IMG_jpg.c   \
+	src/IMG_jxl.c   \
+	src/IMG_lbm.c   \
+	src/IMG_pcx.c   \
+	src/IMG_png.c   \
+	src/IMG_pnm.c   \
+	src/IMG_qoi.c   \
+	src/IMG_stb.c   \
+	src/IMG_svg.c   \
+	src/IMG_tga.c   \
+	src/IMG_tif.c   \
+	src/IMG_xcf.c   \
+	src/IMG_xpm.c   \
+	src/IMG_xv.c    \
+	src/IMG_webp.c  \
+	src/IMG_WIC.c   \
 	src/IMG_xxx.c
-		
-CORESOURCES = MorphOS/*.c
-COREOBJECTS = $(shell echo $(CORESOURCES) | sed -e 's,\.c,\.o,g')
 
-OBJECTS = $(shell echo $(SOURCES) | sed -e 's,\.c,\.o,g')
+OBJECTS     = $(SOURCES:.c=.o)
+COREOBJECTS = $(patsubst %.c,%.o,$(wildcard MorphOS/*.c))
+DEPS        = $(OBJECTS:.o=.d) $(COREOBJECTS:.o=.d)
+
+# Rebuild everything when the backend or the flags change
+BUILDSTAMP = .build-$(JPGPNG)
+
+.PHONY: all sdklibs sdk headers install clean dump
 
 all: $(LIBRARY) sdklibs
 
+$(BUILDSTAMP):
+	@rm -f .build-*
+	@touch $@
+
+src/%.o: src/%.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
+
+MorphOS/%.o: MorphOS/%.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
+
+# The library glue isn't resident code: it runs before r13 is set up
+MorphOS/IMG_library.o: MorphOS/IMG_library.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(COMMONDEFS) $(BACKENDDEFS) \
+		-D__AMIGADATE__=\"$(AMIGADATE)\" $(DEPFLAGS) -o $@ -c $<
+
+$(TARGET): $(OBJECTS)
+	$(ARCHIVING)
+	@rm -f $@
+	@$(AR) crs $@ $^
+
+$(LIBRARY): $(TARGET) $(COREOBJECTS)
+	$(LINKING)
+	@$(CC) -noixemul -nostartfiles -mresident32 -Wl,-Map=sdl2_image.map \
+		$(COREOBJECTS) -o $@.db -L. -lSDL2_image $(LIBS)
+	$(STRIPPING)
+	@$(STRIP) -o $@ --remove-section=.comment $@.db
+
 sdklibs:
-	@cd MorphOS/devenv; if ! $(MAKE) all; then exit 1; fi;
+	@$(MAKE) -C MorphOS/devenv all
 
 sdk: sdklibs
-	mkdir -p /gg/usr/local/include/SDL2
-	mkdir -p /gg/usr/local/lib
-	mkdir -p /gg/usr/local/lib/libb32
-	cp include/SDL_image.h /gg/usr/local/include/SDL2/SDL_image.h
-	cp MorphOS/devenv/lib/libSDL2_image.a /gg/usr/local/lib/libSDL2_image.a
-	cp MorphOS/devenv/lib/libb32/libSDL2_image.a /gg/usr/local/lib/libb32/libSDL2_image.a
+	mkdir -p $(PREFIX)/include/SDL2 $(PREFIX)/lib/libb32 $(PREFIX)/lib/pkgconfig
+	mkdir -p $(addprefix $(PREFIX)/include/,fd clib proto ppcinline)
+	cp include/SDL_image.h $(PREFIX)/include/SDL2/SDL_image.h
+	cp MorphOS/sdk/fd/sdl2_image_lib.fd $(PREFIX)/include/fd/
+	cp MorphOS/sdk/clib/sdl2_image_protos.h $(PREFIX)/include/clib/
+	cp MorphOS/sdk/proto/sdl2_image.h $(PREFIX)/include/proto/
+	cp MorphOS/sdk/ppcinline/sdl2_image.h $(PREFIX)/include/ppcinline/
+	cp MorphOS/devenv/lib/libSDL2_image.a $(PREFIX)/lib/libSDL2_image.a
+	cp MorphOS/devenv/lib/libb32/libSDL2_image.a $(PREFIX)/lib/libb32/libSDL2_image.a
+	cp MorphOS/devenv/lib/libb32/libSDL2_image-nc.a $(PREFIX)/lib/libb32/libSDL2_image-nc.a
+	cp SDL2_image.pc $(PREFIX)/lib/pkgconfig/SDL2_image.pc
 
 headers:
 	$(HEADERING)
 	/gg/bin/cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --proto=MorphOS/sdk/proto/sdl2_image.h
 	/gg/bin/cvinclude.pl --fd=MorphOS/sdk/fd/sdl2_image_lib.fd --clib=MorphOS/sdk/clib/sdl2_image_protos.h --inline=MorphOS/sdk/ppcinline/sdl2_image.h
-	
+
 install: $(LIBRARY)
 	@cp $(LIBRARY) LIBS:
 	-flushlib $(LIBRARY)
 
-MorphOS/IMG_library.o: MorphOS/IMG_library.c MorphOS/IMG_library.h MorphOS/IMG_stubs.h
-	$(COMPILING)
-	$(CC) -mcpu=750 $(INCLUDE)  -Wall -fno-strict-aliasing -D__AMIGADATE__=\"$(AMIGADATE)\" -DAROS_ALMOST_COMPATIBLE -o $@ -c $*.c
+# Test programs, linked against the glue library (run "make sdklibs" first)
+APPFLAGS = -noixemul -O2 -Wall $(INCLUDE)
+APPLIBS  = -LMorphOS/devenv/lib -lSDL2_image -L$(PREFIX)/lib -lSDL2 -lGL
 
-$(TARGET): $(OBJECTS)
-	$(ARCHIVING)
-	@$(AR) crvs $@ $^
+testimage: test/main.c sdklibs
+	$(CC) $(APPFLAGS) $(addprefix -DLOAD_,$(FORMATS)) test/main.c -o $@ \
+		-LMorphOS/devenv/lib -lSDL2_image -L../SDL-release-2.32.x-MOS/test -lSDL2test -L$(PREFIX)/lib -lSDL2 -lGL
 
-$(LIBRARY): $(TARGET) $(COREOBJECTS)
-	$(LINKING)
-	$(CC) -nostartfiles -O0 -mresident32 -Wl,-Map=sdl2_image.map $(COREOBJECTS) -o $@.db -L. -lSDL2_image -L/gg/usr/local/lib -lSDL2 -lGL $(LIBS_EXT) -lm
-	$(STRIPPING)
-	@ppc-morphos-strip -o $@ --remove-section=.comment $@.db
+showanim: examples/showanim.c sdklibs
+	$(CC) $(APPFLAGS) examples/showanim.c -o $@ $(APPLIBS)
 
-testimage: test/main.c
-	$(CC) -noixemul -O2 -Wall test/main.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -L../SDL-release-2.32.x-MOS/test -lSDL2test -lSDL2 -lGL
-
-showanim: examples/showanim.c
-	$(CC) -noixemul -O2 -Wall examples/showanim.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -lSDL2 -lGL
-
-showimage: examples/showimage.c
-	$(CC) -noixemul -O2 -Wall examples/showimage.c -o $@ $(CDEFS) $(INCLUDE) -LMorphOS/devenv/lib -L/gg/usr/local/lib -lSDL2_image -lSDL2 -lGL
+showimage: examples/showimage.c sdklibs
+	$(CC) $(APPFLAGS) examples/showimage.c -o $@ $(APPLIBS)
 
 clean:
-	rm -f $(LIBRARY) $(TARGET) $(OBJECTS) $(COREOBJECTS) *.db *.s
-	rm -rf morphos/devenv/lib morphos/devenv/*.o morphos/devenv/*.s
+	rm -f $(LIBRARY) $(LIBRARY).db $(LIBRARY).s sdl2_image.map $(TARGET)
+	rm -f $(OBJECTS) $(COREOBJECTS) $(DEPS) .build-*
+	rm -f testimage showanim showimage
+	@$(MAKE) -C MorphOS/devenv clean
 
 dump:
-	ppc-morphos-objdump --disassemble-all --reloc $(LIBRARY).db >$(LIBRARY).s
+	$(OBJDUMP) --disassemble-all --reloc $(LIBRARY).db >$(LIBRARY).s
+
+-include $(DEPS)

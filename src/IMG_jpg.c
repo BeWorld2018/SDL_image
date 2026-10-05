@@ -50,6 +50,10 @@
 
 #define USE_JPEGLIB
 #if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+/* jfif.library (libjpeg 6b API). Its functions are plain (sysv) without a
+   base register, so with _NO_PPCINLINE they resolve to the libaboxstubs
+   glue, which only needs JFIFBase (opened in MorphOS/IMG_library.c). */
+#include <libraries/jfif.h>
 #include <proto/jfif.h>
 #else
 #include <jpeglib.h>
@@ -144,13 +148,8 @@ static struct jpeg_error_mgr *my_std_error(struct jpeg_error_mgr *err)
     lib.FUNC = (SIG) SDL_LoadFunction(lib.handle, #FUNC); \
     if (lib.FUNC == NULL) { SDL_UnloadObject(lib.handle); return -1; }
 #else
-#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
-#define FUNCTION_LOADER(FUNC, SIG, REP) \
-    lib.FUNC = REP;
-#else
 #define FUNCTION_LOADER(FUNC, SIG) \
     lib.FUNC = FUNC;
-#endif
 #endif
 
 int IMG_InitJPG()
@@ -163,23 +162,10 @@ int IMG_InitJPG()
         }
 #endif
 #if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
-		FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 232))
-        FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize), *(void**)((long)(JFIFBase) - 34))
-        FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 46))
-        FUNCTION_LOADER(jpeg_finish_decompress, boolean (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 184))
-        FUNCTION_LOADER(jpeg_read_header, int (*) (j_decompress_ptr cinfo, boolean require_image), *(void**)((long)(JFIFBase) - 166))
-        FUNCTION_LOADER(jpeg_read_scanlines, JDIMENSION (*) (j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines), *(void**)((long)(JFIFBase) - 178))
-        FUNCTION_LOADER(jpeg_resync_to_restart, boolean (*) (j_decompress_ptr cinfo, int desired), *(void**)((long)(JFIFBase) - 292))
-        FUNCTION_LOADER(jpeg_start_decompress, boolean (*) (j_decompress_ptr cinfo), *(void**)((long)(JFIFBase) - 172))
-        FUNCTION_LOADER(jpeg_CreateCompress, void (*) (j_compress_ptr cinfo, int version, size_t structsize), *(void**)((long)(JFIFBase) - 34))
-        FUNCTION_LOADER(jpeg_start_compress, void (*) (j_compress_ptr cinfo, boolean write_all_tables), *(void**)((long)(JFIFBase) - 118) )
-        FUNCTION_LOADER(jpeg_set_quality, void (*) (j_compress_ptr cinfo, int quality, boolean force_baseline), *(void**)((long)(JFIFBase) - 70) )
-        FUNCTION_LOADER(jpeg_set_defaults, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 52))
-        FUNCTION_LOADER(jpeg_write_scanlines, JDIMENSION (*) (j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines), *(void**)((long)(JFIFBase) - 124))
-        FUNCTION_LOADER(jpeg_finish_compress, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 130))
-        FUNCTION_LOADER(jpeg_destroy_compress, void (*) (j_compress_ptr cinfo), *(void**)((long)(JFIFBase) - 40))
-        FUNCTION_LOADER(jpeg_std_error, struct jpeg_error_mgr * (*) (struct jpeg_error_mgr * err), my_std_error)
-#else
+        if (JFIFBase == NULL) {
+            return IMG_SetError("jfif.library is not available");
+        }
+#endif
         FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo))
         FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize))
         FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo))
@@ -195,6 +181,11 @@ int IMG_InitJPG()
         FUNCTION_LOADER(jpeg_write_scanlines, JDIMENSION (*) (j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines))
         FUNCTION_LOADER(jpeg_finish_compress, void (*) (j_compress_ptr cinfo))
         FUNCTION_LOADER(jpeg_destroy_compress, void (*) (j_compress_ptr cinfo))
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+        /* jpeg_std_error() isn't part of jfif.library, and the one in
+           libjpeg_shared.a pulls fprintf()/exit() into the library. */
+        lib.jpeg_std_error = my_std_error;
+#else
         FUNCTION_LOADER(jpeg_std_error, struct jpeg_error_mgr * (*) (struct jpeg_error_mgr * err))
 #endif
     }
@@ -640,7 +631,7 @@ static int IMG_SaveJPG_RW_jpeglib(SDL_Surface *surface, SDL_RWops *dst, int qual
     SDL_Surface* jpeg_surface = surface;
     int ret;
 
-    if (!IMG_Init(IMG_INIT_JPG)) {
+    if ((IMG_Init(IMG_INIT_JPG) & IMG_INIT_JPG) == 0) {
         return -1;
     }
 
