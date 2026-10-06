@@ -316,7 +316,8 @@ static SDL_Surface *GetBMPSurface(SDL_IOStream *src)
             goto done;
         }
         for (i = 0; i < (int) biClrUsed; ++i) {
-            if (SDL_ReadIO(src, &palette[i], 4) != 4) {
+            /* B, G, R, reserved bytes: 0x00RRGGBB on every host */
+            if (!SDL_ReadU32LE(src, &palette[i])) {
                 goto done;
             }
 
@@ -393,6 +394,12 @@ static SDL_Surface *GetBMPSurface(SDL_IOStream *src)
             if (SDL_ReadIO(src, bits, surface->pitch) != (size_t)surface->pitch) {
                 goto done;
             }
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+            /* BGRA bytes are ARGB8888 only on little-endian hosts */
+            for (i = 0; i < surface->w; ++i) {
+                ((Uint32 *) bits)[i] = SDL_Swap32(((Uint32 *) bits)[i]);
+            }
+#endif
             break;
         }
         /* Skip padding bytes, ugh */

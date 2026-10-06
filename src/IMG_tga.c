@@ -421,6 +421,11 @@ bool IMG_SaveTGA_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
     case SDL_PIXELFORMAT_BGRA32:
     case SDL_PIXELFORMAT_RGBA32:
     case SDL_PIXELFORMAT_XRGB8888:
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    /* The usual packed formats: BGRA32/RGBA32 on little-endian hosts only */
+    case SDL_PIXELFORMAT_ARGB8888:
+    case SDL_PIXELFORMAT_ABGR8888:
+#endif
         hdr.type = TGA_TYPE_RGB;
         hdr.pixel_bits = 32;
         hdr.flags |= 0x08;
@@ -483,6 +488,10 @@ bool IMG_SaveTGA_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
         break;
     case SDL_PIXELFORMAT_RGBA32:
     case SDL_PIXELFORMAT_XRGB8888:
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    case SDL_PIXELFORMAT_ARGB8888:
+    case SDL_PIXELFORMAT_ABGR8888:
+#endif
         target_format = SDL_PIXELFORMAT_BGRA32;
         break;
     case SDL_PIXELFORMAT_XRGB1555:
@@ -508,11 +517,37 @@ bool IMG_SaveTGA_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
         }
     }
 
-    for (int y = 0; y < surface->h; ++y) {
-        if (SDL_WriteIO(dst, pixels_to_write + y * pitch_to_write, (size_t)surface->w * bytes_per_pixel) != (size_t)(surface->w * bytes_per_pixel)) {
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    /* XRGB1555 pixels are native Uint16, TGA stores them little-endian */
+    Uint16 *swapped_row = NULL;
+    if (bytes_per_pixel == 2) {
+        swapped_row = (Uint16 *)SDL_malloc((size_t)surface->w * 2);
+        if (!swapped_row) {
             goto done;
         }
     }
+#endif
+    for (int y = 0; y < surface->h; ++y) {
+        const Uint8 *row = pixels_to_write + y * pitch_to_write;
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+        if (swapped_row) {
+            const Uint16 *src16 = (const Uint16 *)row;
+            for (int x = 0; x < surface->w; ++x) {
+                swapped_row[x] = SDL_Swap16LE(src16[x]);
+            }
+            row = (const Uint8 *)swapped_row;
+        }
+#endif
+        if (SDL_WriteIO(dst, row, (size_t)surface->w * bytes_per_pixel) != (size_t)(surface->w * bytes_per_pixel)) {
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+            SDL_free(swapped_row);
+#endif
+            goto done;
+        }
+    }
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    SDL_free(swapped_row);
+#endif
 
     result = true;
 

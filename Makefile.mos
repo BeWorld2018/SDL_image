@@ -56,7 +56,11 @@ else
 $(error JPGPNG must be shared or stb (got "$(JPGPNG)"))
 endif
 
-CDEFS = $(COMMONDEFS) $(BACKENDDEFS) $(addprefix -DLOAD_,$(FORMATS))
+# Library version = SDL_image version (MorphOS/IMG_version.h)
+IMGVERSION_H = include/SDL3_image/SDL_image.h
+IMGVERSION   = $(shell awk '$$2 == "SDL_IMAGE_MAJOR_VERSION" { ma = $$3 } $$2 == "SDL_IMAGE_MINOR_VERSION" { mi = $$3 } $$2 == "SDL_IMAGE_MICRO_VERSION" { mc = $$3 } END { printf "-DIMG_LIB_MAJOR=%d -DIMG_LIB_MINOR=%d -DIMG_LIB_MICRO=%d -DIMG_LIB_REVISION=%d", ma, mi, mc, mi * 100 + mc }' $(IMGVERSION_H))
+
+CDEFS = $(COMMONDEFS) $(BACKENDDEFS) $(addprefix -DLOAD_,$(FORMATS)) $(IMGVERSION)
 
 INCLUDE = -I./include -I$(PREFIX)/include/SDL3 -I$(PREFIX)/include
 CFLAGS  = -noixemul -mcpu=750 -mtune=7450 -O3 -mresident32 \
@@ -134,7 +138,7 @@ MorphOS/%.o: MorphOS/%.c $(BUILDSTAMP)
 # linked with -mresident32 load SysBase through r13.
 MorphOS/IMG_library.o: MorphOS/IMG_library.c $(BUILDSTAMP)
 	$(COMPILING)
-	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(GLUEDEFS) $(BACKENDDEFS) \
+	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(GLUEDEFS) $(BACKENDDEFS) $(IMGVERSION) \
 		-D__AMIGADATE__=\"$(AMIGADATE)\" $(DEPFLAGS) -o $@ -c $<
 
 $(INTERNAL): $(OBJECTS)

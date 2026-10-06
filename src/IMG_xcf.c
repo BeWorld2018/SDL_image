@@ -821,8 +821,14 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
                 row = (Uint32 *) ((Uint8 *) surface->pixels + y * surface->pitch + tx * 4);
                 switch (hierarchy->bpp) {
                 case 4:
-                    for (x = tx; x < tx + ox; x++)
-                        *row++ = SDL_Swap32(*p++);
+                    /* RGBA bytes -> ARGB8888, independent of the host byte order */
+                    for (x = tx; x < tx + ox; x++) {
+                        *row++ = ((Uint32)p8[3] << 24) |
+                                 ((Uint32)p8[0] << 16) |
+                                 ((Uint32)p8[1] << 8) |
+                                 ((Uint32)p8[2] << 0);
+                        p8 += 4;
+                    }
                     break;
                 case 3:
                     for (x = tx; x < tx + ox; x++) {

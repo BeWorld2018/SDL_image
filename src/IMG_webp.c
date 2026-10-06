@@ -673,20 +673,15 @@ bool IMG_CreateWEBPAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Propertie
         return false;
     }
 
+    /* Background color is BGRA byte order according to the spec. libwebp
+       reads it with a portable little-endian load, so the value is
+       0xAARRGGBB on every host: no big-endian special case. */
     uint32_t bgcolor = lib.WebPDemuxGetI(decoder->ctx->demuxer, WEBP_FF_BACKGROUND_COLOR);
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-    decoder->ctx->bgcolor = SDL_MapSurfaceRGBA(decoder->ctx->canvas,
-                                              (bgcolor >> 8) & 0xFF,
-                                              (bgcolor >> 16) & 0xFF,
-                                              (bgcolor >> 24) & 0xFF,
-                                              (bgcolor >> 0) & 0xFF);
-#else
     decoder->ctx->bgcolor = SDL_MapSurfaceRGBA(decoder->ctx->canvas,
                                               (bgcolor >> 16) & 0xFF,
                                               (bgcolor >> 8) & 0xFF,
                                               (bgcolor >> 0) & 0xFF,
                                               (bgcolor >> 24) & 0xFF);
-#endif
 
     if (has_alpha) {
         SDL_FillSurfaceRect(decoder->ctx->canvas, NULL, SDL_MapSurfaceRGBA(decoder->ctx->canvas, 0, 0, 0, 0));
