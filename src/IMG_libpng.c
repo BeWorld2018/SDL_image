@@ -38,11 +38,25 @@
 #ifdef INCLUDE_PNG_FRAMEWORK
 #include <png/png.h>
 #else
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG)
+/* png.library (libpng 1.2 API). Include the os-include headers directly:
+   /gg/usr/local/include/png.h (libpng16) would shadow the SDK wrapper.
+   Functions are plain (sysv), resolved by the libaboxstubs glue through
+   PNGBase (opened in MorphOS/IMG_library.c). */
+#include <libraries/png.h>
+#include <proto/png.h>
+/* png.library longjmp()s with longjmp59() into png_ptr->jmpbuf59 */
+extern int setjmp59(int *env) __attribute__((returns_twice));
+#define IMG_PNG_SETJMP(png_ptr) setjmp59((png_ptr)->jmpbuf59)
+#elif defined(__MORPHOS__)
 #include <png16.h>
 #else
 #include <png.h>
 #endif
+#endif
+
+#ifndef IMG_PNG_SETJMP
+#define IMG_PNG_SETJMP(png_ptr) setjmp((png_ptr)->jmpbuf)
 #endif
 
 #if defined(LOAD_LIBPNG_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
@@ -239,6 +253,13 @@ bool IMG_InitPNG(void)
             return false;
         }
 #endif
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_PNG)
+        /* No png.library: IMG_LoadPNG_IO()/IMG_SavePNG_IO() fall back to
+           SDL's own PNG code */
+        if (PNGBase == NULL) {
+            return false;
+        }
+#endif
 
         FUNCTION_LOADER_LIBPNG(png_create_info_struct, png_infop(*)(png_noconst15_structrp png_ptr))
         FUNCTION_LOADER_LIBPNG(png_create_read_struct, png_structp(*)(png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn))
@@ -389,7 +410,7 @@ static bool LIBPNG_LoadPNG_IO_Internal(SDL_IOStream *src, struct png_load_vars *
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(vars->png_ptr, longjmp, sizeof(jmp_buf))))
 #else
-    if (setjmp(vars->png_ptr->jmpbuf))
+    if (IMG_PNG_SETJMP(vars->png_ptr))
 #endif
     {
         vars->error = "Error during PNG read operation";
@@ -611,7 +632,7 @@ static bool LIBPNG_SavePNG_IO_Internal(struct png_save_vars *vars, SDL_Surface *
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(vars->png_ptr, longjmp, sizeof(jmp_buf))))
 #else
-    if (setjmp(vars->png_ptr->jmpbuf))
+    if (IMG_PNG_SETJMP(vars->png_ptr))
 #endif
     {
         vars->error = "Error during PNG write operation";
@@ -925,7 +946,7 @@ static SDL_Surface *decompress_png_frame_data(DecompressionContext *context, png
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(context->png_ptr, longjmp, sizeof(jmp_buf))))
 #else
-    if (setjmp(context->png_ptr->jmpbuf))
+    if (IMG_PNG_SETJMP(context->png_ptr))
 #endif
     {
         SDL_SetError("Error during PNG read");
@@ -1659,7 +1680,7 @@ static png_bytep compress_surface_to_png_data(CompressionContext *context, SDL_S
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(context->temp_png_ptr, longjmp, sizeof(jmp_buf))))
 #else
-    if (setjmp(context->temp_png_ptr->jmpbuf))
+    if (IMG_PNG_SETJMP(context->temp_png_ptr))
 #endif
     {
         SDL_SetError("Error during temporary PNG write operation for compression");
@@ -2278,7 +2299,7 @@ bool IMG_CreateAPNGAnimationEncoder(IMG_AnimationEncoder *encoder, SDL_Propertie
 #ifndef LIBPNG_VERSION_12
     if (setjmp(*lib.png_set_longjmp_fn(ctx->png_write_ptr, longjmp, sizeof(jmp_buf))))
 #else
-    if (setjmp(ctx->png_write_ptr->jmpbuf))
+    if (IMG_PNG_SETJMP(ctx->png_write_ptr))
 #endif
     {
         SDL_SetError("Error during APNG write setup");

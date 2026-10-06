@@ -140,7 +140,7 @@ IMG_AnimationEncoder *IMG_CreateAnimationEncoderWithProperties(SDL_PropertiesID 
         result = IMG_CreateANIAnimationEncoder(encoder, props);
     } else if (SDL_strcasecmp(type, "apng") == 0 || SDL_strcasecmp(type, "png") == 0) {
         result = IMG_CreateAPNGAnimationEncoder(encoder, props);
-    } else if (SDL_strcasecmp(type, "avifs") == 0 || SDL_strcasecmp(type, "avif") == 0) {
+    } else if (SDL_strcasecmp(type, "avifs") == 0) {
         result = IMG_CreateAVIFAnimationEncoder(encoder, props);
     } else if (SDL_strcasecmp(type, "gif") == 0) {
         result = IMG_CreateGIFAnimationEncoder(encoder, props);
@@ -200,6 +200,52 @@ Uint64 IMG_GetEncoderDuration(IMG_AnimationEncoder *encoder, Uint64 duration, Ui
     return value;
 }
 
+#ifdef BUILD_SDL3_IMAGE_LIBRARY
+/* sdl3_image.library: sdl3.library calls the callback with its own r13,
+   but our SDL calls go through the -mresident32 glue (SDL3Base read
+   through r13). The caller's r13 travels in userdata and __saveds
+   reloads it (__restore_r13 below, local to this file: lwz 13,0(r3)). */
+struct has_metadata_ctx
+{
+    void *r13;          /* first: read by __restore_r13 */
+    bool has_metadata;
+};
+
+asm
+("\n"
+"	.pushsection \".text\"\n"
+"	.align 2\n"
+"	.type __restore_r13, @function\n"
+"__restore_r13:\n"
+"	lwz 13, 0(3)\n"
+"	blr\n"
+"__end__restore_r13:\n"
+"	.size __restore_r13, __end__restore_r13 - __restore_r13\n"
+"	.popsection\n"
+);
+
+static void __saveds SDLCALL HasMetadataCallback(void *userdata, SDL_PropertiesID props, const char *name)
+{
+    struct has_metadata_ctx *ctx = (struct has_metadata_ctx *)userdata;
+
+    if (SDL_strncmp(name, "SDL_image.metadata.", 19) == 0) {
+        ctx->has_metadata = true;
+    }
+}
+
+bool IMG_HasMetadata(SDL_PropertiesID props)
+{
+    struct has_metadata_ctx ctx;
+
+    asm volatile ("mr %0,13" : "=r" (ctx.r13));
+    ctx.has_metadata = false;
+
+    if (props) {
+        SDL_EnumerateProperties(props, HasMetadataCallback, &ctx);
+    }
+    return ctx.has_metadata;
+}
+#else
 static void SDLCALL HasMetadataCallback(void *userdata, SDL_PropertiesID props, const char *name)
 {
     bool *has_metadata = (bool *)userdata;
@@ -218,6 +264,7 @@ bool IMG_HasMetadata(SDL_PropertiesID props)
     }
     return has_metadata;
 }
+#endif
 
 static bool IMG_EncodeAnimation(IMG_Animation *anim, SDL_IOStream *dst, bool closeio, const char *type, int quality)
 {

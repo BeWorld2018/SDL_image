@@ -27,7 +27,13 @@
 
 #ifdef LOAD_TIF
 
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_TIF)
+/* tiff.library. Functions are (sysv,r12base), resolved by the libaboxstubs
+   glue through TIFFBase (opened in MorphOS/IMG_library.c). */
+#include <proto/tiff.h>
+#else
 #include <tiffio.h>
+#endif
 
 #if defined(LOAD_TIF_DYNAMIC) && defined(SDL_ELF_NOTE_DLOPEN)
 SDL_ELF_NOTE_DLOPEN(
@@ -64,6 +70,11 @@ static bool IMG_InitTIF(void)
         lib.handle = SDL_LoadObject(LOAD_TIF_DYNAMIC);
         if ( lib.handle == NULL ) {
             return false;
+        }
+#endif
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_TIF)
+        if (TIFFBase == NULL) {
+            return SDL_SetError("tiff.library is not available");
         }
 #endif
         FUNCTION_LOADER(TIFFClientOpen, TIFF * (*)(const char*, const char*, thandle_t, TIFFReadWriteProc, TIFFReadWriteProc, TIFFSeekProc, TIFFCloseProc, TIFFSizeProc, TIFFMapFileProc, TIFFUnmapFileProc))

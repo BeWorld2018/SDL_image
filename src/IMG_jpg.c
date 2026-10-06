@@ -59,12 +59,23 @@ SDL_ELF_NOTE_DLOPEN(
 )
 #endif
 
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+/* jfif.library (libjpeg 6b API). Its functions are plain (sysv) without a
+   base register, so with _NO_PPCINLINE they resolve to the libaboxstubs
+   glue, which only needs JFIFBase (opened in MorphOS/IMG_library.c). */
+#include <libraries/jfif.h>
+#include <proto/jfif.h>
+#else
 #include <jpeglib.h>
+#endif
 
 #ifdef JPEG_TRUE  /* MinGW version of jpeg-8.x renamed TRUE to JPEG_TRUE etc. */
     typedef JPEG_boolean boolean;
     #define TRUE JPEG_TRUE
     #define FALSE JPEG_FALSE
+#elif defined(__MORPHOS__) && !defined(TRUE)
+    #define TRUE 1
+    #define FALSE 0
 #endif
 
 /* Define this for fast loading and not as good image quality */
@@ -94,6 +105,39 @@ static struct {
     struct jpeg_error_mgr * (*jpeg_std_error) (struct jpeg_error_mgr * err);
 } lib;
 
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+/* jpeg_std_error() isn't part of jfif.library, and the one in
+   libjpeg_shared.a pulls fprintf()/exit() into the library. The caller
+   then sets error_exit and output_message itself. */
+static const char *const my_std_message_table[] = {
+    NULL
+};
+
+static void my_reset_error_mgr(j_common_ptr cinfo)
+{
+    cinfo->err->num_warnings = 0;
+    cinfo->err->msg_code = 0;
+}
+
+static void format_no_message(j_common_ptr cinfo, char *buffer)
+{
+}
+
+static void emit_no_message(j_common_ptr cinfo, int msg_level)
+{
+}
+
+static struct jpeg_error_mgr *my_std_error(struct jpeg_error_mgr *err)
+{
+    SDL_zerop(err);
+    err->emit_message = emit_no_message;
+    err->format_message = format_no_message;
+    err->reset_error_mgr = my_reset_error_mgr;
+    err->jpeg_message_table = my_std_message_table;
+    return err;
+}
+#endif
+
 #ifdef LOAD_JPG_DYNAMIC
 #define FUNCTION_LOADER(FUNC, SIG) \
     lib.FUNC = (SIG) SDL_LoadFunction(lib.handle, #FUNC); \
@@ -112,6 +156,11 @@ static bool IMG_InitJPG(void)
             return false;
         }
 #endif
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+        if (JFIFBase == NULL) {
+            return SDL_SetError("jfif.library is not available");
+        }
+#endif
         FUNCTION_LOADER(jpeg_calc_output_dimensions, void (*) (j_decompress_ptr cinfo))
         FUNCTION_LOADER(jpeg_CreateDecompress, void (*) (j_decompress_ptr cinfo, int version, size_t structsize))
         FUNCTION_LOADER(jpeg_destroy_decompress, void (*) (j_decompress_ptr cinfo))
@@ -127,7 +176,11 @@ static bool IMG_InitJPG(void)
         FUNCTION_LOADER(jpeg_write_scanlines, JDIMENSION (*) (j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines))
         FUNCTION_LOADER(jpeg_finish_compress, void (*) (j_compress_ptr cinfo))
         FUNCTION_LOADER(jpeg_destroy_compress, void (*) (j_compress_ptr cinfo))
+#if defined(__MORPHOS__) && defined(USE_SHAREDLIB_JPEG)
+        lib.jpeg_std_error = my_std_error;
+#else
         FUNCTION_LOADER(jpeg_std_error, struct jpeg_error_mgr * (*) (struct jpeg_error_mgr * err))
+#endif
     }
     ++lib.loaded;
 

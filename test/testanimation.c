@@ -49,7 +49,9 @@ static const FormatInfo formatInfo[] = {
 
     { "APNG", { { IMG_PROP_METADATA_TITLE_STRING, (const void*)DEFAULT_TITLE, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_AUTHOR_STRING, (const void*)DEFAULT_AUTHOR, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_DESCRIPTION_STRING, (const void*)DEFAULT_DESCRIPTION, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_LOOP_COUNT_NUMBER, (const void *)&default_loop_count, SDL_PROPERTY_TYPE_NUMBER }, { IMG_PROP_METADATA_CREATION_TIME_STRING, (const void*)DEFAULT_CREATION_TIME, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_COPYRIGHT_STRING, (const void*)DEFAULT_COPYRIGHT, SDL_PROPERTY_TYPE_STRING } } },
 
+#ifdef LOAD_AVIF
     { "AVIFS", { { IMG_PROP_METADATA_TITLE_STRING, (const void*)DEFAULT_TITLE, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_AUTHOR_STRING, (const void*)DEFAULT_AUTHOR, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_DESCRIPTION_STRING, (const void*)DEFAULT_DESCRIPTION, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_LOOP_COUNT_NUMBER, (const void *)&default_loop_count, SDL_PROPERTY_TYPE_NUMBER }, { IMG_PROP_METADATA_CREATION_TIME_STRING, (const void*)DEFAULT_CREATION_TIME, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_COPYRIGHT_STRING, (const void*)DEFAULT_COPYRIGHT, SDL_PROPERTY_TYPE_STRING } } },
+#endif
 
     { "GIF", { { IMG_PROP_METADATA_DESCRIPTION_STRING, (const void*)DEFAULT_DESCRIPTION, SDL_PROPERTY_TYPE_STRING }, { IMG_PROP_METADATA_LOOP_COUNT_NUMBER, (const void *)&default_loop_count, SDL_PROPERTY_TYPE_NUMBER } } },
 
@@ -63,11 +65,17 @@ static const struct {
 } inputImages[] = {
     { "ANI", "rgbrgb.ani" },
     { "APNG", "rgbrgb.png" },
+#ifdef LOAD_AVIF
     { "AVIFS", "rgbrgb.avifs" },
+#endif
     { "GIF", "rgbrgb.gif" },
     { "WEBP", "rgbrgb.webp" }
 };
-static const char *outputImageFormats[] = { "ANI", "APNG", "AVIFS", "GIF", "WEBP" };
+static const char *outputImageFormats[] = { "ANI", "APNG",
+#ifdef LOAD_AVIF
+    "AVIFS",
+#endif
+    "GIF", "WEBP" };
 
 static const char *GetAnimationDecoderStatusString(IMG_AnimationDecoderStatus status)
 {

@@ -5,7 +5,7 @@
 [submodule "external/libpng"]
 	path = external/libpng
 	url = https://github.com/libsdl-org/libpng.git
-	branch = v1.6.59-SDL
+	branch = v1.6.58-SDL
 [submodule "external/libwebp"]
 	path = external/libwebp
 	url = https://github.com/libsdl-org/libwebp.git
@@ -13,7 +13,7 @@
 [submodule "external/libtiff"]
 	path = external/libtiff
 	url = https://github.com/libsdl-org/libtiff.git
-	branch = v4.7.2-SDL
+	branch = v4.7.1-SDL
 [submodule "external/zlib"]
 	path = external/zlib
 	url = https://github.com/libsdl-org/zlib.git
@@ -33,4 +33,4 @@
 [submodule "external/aom"]
 	path = external/aom
 	url = https://github.com/libsdl-org/aom.git
-	branch = v3.6.x-SDL
+	branch = v3.6.1-SDL

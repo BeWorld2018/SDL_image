@@ -1,214 +1,217 @@
-# Makefile for building SDL3_image 3.4.0 (MorphOS)
+# Makefile to build sdl3_image.library for MorphOS (SDL_image 3.4)
 #
-# This Makefile builds two static libraries:
-#   - libSDL3_image_light.a : SDL3_image core, using compile-time enabled loaders
-#   - libSDL3_image.a       : "fat" archive that embeds all enabled external
-#                             image libraries (PNG, JPEG, TIFF, WebP, AVIF…)
+#   make -f Makefile.mos                  library + glue libs + LVO check
+#   make -f Makefile.mos JPGPNG=stb       other JPEG/PNG backend (see below)
+#   make -f Makefile.mos glue             regenerate fd/clib/IMG_stubs.h + proto/ppcinline
+#                                         (after an SDL_image update; needs python3)
+#   make -f Makefile.mos checklvo         every jump table entry vs the fd (run by "all")
+#   make -f Makefile.mos tests            testimage, testanimation, show* against the library
+#   make -f Makefile.mos sdk              install headers, fd/proto and glue libs in $(PREFIX)
+#                                         (libSDL3_image.a there is the glue, not a static lib)
+#   make -f Makefile.mos install          copy sdl3_image.library to LIBS: (on MorphOS)
 #
-# The build is fully configurable via HAVE_LIB* switches.
-# External libraries are merged using 'ar -M' to avoid object name collisions
-# (required for libraries such as dav1d).
+# JPEG/PNG/TIFF backend, JPGPNG=
+#   shared  (default) MorphOS system libraries:
+#             -DUSE_SHAREDLIB_JPEG  jfif.library
+#             -DUSE_SHAREDLIB_PNG   png.library V51
+#             -DUSE_SHAREDLIB_TIF   tiff.library
+#           They are opened by sdl3_image.library and are optional: without
+#           jfif/tiff.library only that format fails, without png.library
+#           PNG falls back to SDL's own loader/saver.
+#   stb     built-in stb_image JPEG decoder, SDL's own PNG code.
+#           TIFF still uses tiff.library.
 #
-# ---------------------------------------------------------------------------
-# Installation requirements:
+# WebP is linked in statically ($(PREFIX)/lib/libwebp*.a). AVIF and JXL: TODO.
 #
-# You must have the following libraries installed in /gg/usr/local/lib
-# (depending on enabled features):
-#
-#   - libpng16
-#   - libjpeg
-#   - libtiff
-#   - libwebp, libwebpdemux, libwebpmux, libsharpyuv
-#   - libavif, libdav1d, libaom, libyuv   (optional, AVIF support)
-#
-# ---------------------------------------------------------------------------
-# Build examples:
-#
-#   Build with default options:
-#       make -f makefile.mos
-#
-#   Disable AVIF support:
-#       make -f makefile.mos HAVE_LIBAVIF=0
-#
-#   Minimal build (PNG + JPG only):
-#       make -f makefile.mos HAVE_LIBTIF=0 HAVE_LIBWEBP=0 HAVE_LIBAVIF=0
-#
-# ---------------------------------------------------------------------------
-# Install into SDK (/gg/usr/local):
-#
-#   make -f makefile.mos install
-#
-# This installs:
-#   - Headers into /gg/usr/local/include/SDL3_image
-#   - Libraries into /gg/usr/local/lib
-#
-#
+# Glue libraries (MorphOS/devenv/lib):
+#   libSDL3_image.a              programs: opens sdl3_image.library
+#   libb32/libSDL3_image.a       -mresident32 code
+#   libb32/libSDL3_image-nc.a    -mresident32, opens nothing (SDL3ImageBase set by hand)
 
-CC      = ppc-morphos-gcc-11 
-AR		= ppc-morphos-ar
-RANLIB 	= ppc-morphos-ranlib
+JPGPNG ?= shared
+
+PREFIX  = /gg/usr/local
+CC      = ppc-morphos-gcc-9
+AR      = ppc-morphos-ar
+NM      = ppc-morphos-nm
 STRIP   = ppc-morphos-strip
+OBJDUMP = ppc-morphos-objdump
+CVI     = /gg/bin/cvinclude.pl
+PYTHON  = python3
 
-HAVE_LIBPNG 	?= 1
-HAVE_LIBJPG 	?= 1
-HAVE_LIBTIF 	?= 1
-HAVE_LIBWEBP 	?= 1
-HAVE_LIBAVIF 	?= 1
-HAVE_LIBJXL 	?= 0
+FORMATS = ANI BMP GIF JPG LBM PCX PNG PNM QOI SVG TGA TIF WEBP XCF XPM XV
 
-CDEFS = \
-	-DLOAD_ANI -DLOAD_GIF -DLOAD_BMP -DLOAD_LBM -DLOAD_PCX -DLOAD_PNM -DLOAD_TGA \
-	-DLOAD_XCF -DLOAD_XPM -DLOAD_XV -DLOAD_SVG -DLOAD_QOI
+GLUEDEFS   = -DAROS_ALMOST_COMPATIBLE -DUSE_INLINE_STDARG
+COMMONDEFS = $(GLUEDEFS) -D_NO_PPCINLINE -DBUILD_SDL3_IMAGE_LIBRARY
 
-ifeq ($(HAVE_LIBPNG),1)
-CDEFS += -DLOAD_PNG -DSDL_IMAGE_LIBPNG
+ifeq ($(JPGPNG),shared)
+BACKENDDEFS = -DUSE_SHAREDLIB_JPEG -DUSE_SHAREDLIB_PNG -DUSE_SHAREDLIB_TIF -DSDL_IMAGE_LIBPNG
+# Only jpeg_std_error()/png_init_io() live there and neither is used by the
+# library: the jpeg_* / png_* calls go through the libaboxstubs glue.
+BACKENDLIBS = -ljpeg_shared -lpng_shared
+else ifeq ($(JPGPNG),stb)
+BACKENDDEFS = -DUSE_STBIMAGE -DUSE_SHAREDLIB_TIF
+BACKENDLIBS =
+else
+$(error JPGPNG must be shared or stb (got "$(JPGPNG)"))
 endif
 
-ifeq ($(HAVE_LIBJPG),1)
-CDEFS += -DLOAD_JPG
-endif
+CDEFS = $(COMMONDEFS) $(BACKENDDEFS) $(addprefix -DLOAD_,$(FORMATS))
 
-ifeq ($(HAVE_LIBTIF),1)
-CDEFS += -DLOAD_TIF
-endif
+INCLUDE = -I./include -I$(PREFIX)/include/SDL3 -I$(PREFIX)/include
+CFLAGS  = -noixemul -mcpu=750 -mtune=7450 -O3 -mresident32 \
+          -Wall -Wno-pointer-sign -fno-strict-aliasing -fomit-frame-pointer \
+          $(INCLUDE) $(CDEFS)
+DEPFLAGS = -MMD -MP
 
-ifeq ($(HAVE_LIBWEBP),1)
-CDEFS += -DLOAD_WEBP
-endif
+# libb32/libSDL3-nc.a: SDL calls through SDL3Base (opened per opener in
+# MorphOS/IMG_startup.c) and the varargs wrappers (SDL_SetError...).
+LIBS = -L$(PREFIX)/lib -lwebpdemux -lwebpmux -lwebp -lsharpyuv -lSDL3-nc -lGL $(BACKENDLIBS) -lm
 
-ifeq ($(HAVE_LIBAVIF),1)
-CDEFS += -DLOAD_AVIF
-endif
+AMIGADATE = $(shell date +"%-d.%-m.%Y")
 
-ifeq ($(HAVE_LIBJXL),1)
-CDEFS += -DLOAD_JXL
-endif
+COMPILING = @echo "compiling $@..."
+LINKING   = @echo "linking $@..."
+ARCHIVING = @echo "archiving $@..."
 
-INCLUDE = -I./include -I/gg/usr/local/include/SDL3 -I/gg/usr/local/include
-CFLAGS  =  -O3 -noixemul $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing -ffast-math -fomit-frame-pointer $(CDEFS)
-SDL3_LDFLAGS = -L. -lSDL3_image -L/gg/usr/local/lib -lSDL3_test -lSDL3 -lGL -lm -lpthread
-
-ECHE = echo -e
-BOLD = \033[1m
-NRML = \033[22m
-
-COMPILING = @$(ECHE) "compiling $(BOLD)$@$(NRML)..."
-LINKING = @$(ECHE) "linking $(BOLD)$@$(NRML)..."
-STRIPPING = @$(ECHE) "stripping $(BOLD)$@$(NRML)..."
-ARCHIVING = @$(ECHE) "archiving $(BOLD)$@$(NRML)..."
-HEADERING = @$(ECHE) "creating headers files $(BOLD)$@$(NRML)..."
-
-MERGE_LIBS =
-
-ifeq ($(HAVE_LIBPNG),1)
-MERGE_LIBS += /gg/usr/local/lib/libpng16.a
-endif
-
-ifeq ($(HAVE_LIBJPG),1)
-MERGE_LIBS += /gg/usr/local/lib/libjpeg.a
-endif
-
-ifeq ($(HAVE_LIBTIF),1)
-MERGE_LIBS += /gg/usr/local/lib/libtiff.a
-endif
-
-ifeq ($(HAVE_LIBWEBP),1)
-MERGE_LIBS += \
-	/gg/usr/local/lib/libwebp.a \
-	/gg/usr/local/lib/libwebpdemux.a \
-	/gg/usr/local/lib/libwebpmux.a \
-	/gg/usr/local/lib/libsharpyuv.a
-endif
-
-ifeq ($(HAVE_LIBAVIF),1)
-MERGE_LIBS += \
-	/gg/usr/local/lib/libavif.a \
-	/gg/usr/local/lib/libdav1d.a \
-	/gg/usr/local/lib/libaom.a \
-	/gg/usr/local/lib/libyuv.a
-endif
-
-
-TARGET  = libSDL3_image_light.a
+INTERNAL = libSDL3_image_lib.a
+LIBRARY  = sdl3_image.library
 
 SOURCES = \
-	src/IMG.c		\
-	src/IMG_ani.c	\
-	src/IMG_anim_decoder.c \
-	src/IMG_anim_encoder.c \
-	src/IMG_avif.c	\
-	src/IMG_bmp.c	\
-	src/IMG_gif.c	\
-	src/IMG_jpg.c	\
-	src/IMG_jxl.c	\
-	src/IMG_lbm.c	\
-	src/IMG_pcx.c	\
-	src/IMG_png.c	\
-	src/IMG_libpng.c \
-	src/IMG_pnm.c	\
-	src/IMG_qoi.c	\
-	src/IMG_stb.c	\
-	src/IMG_svg.c	\
-	src/IMG_tga.c	\
-	src/IMG_tif.c	\
-	src/IMG_xcf.c	\
-	src/IMG_webp.c	\
-	src/IMG_xpm.c	\
-	src/xmlman.c	\
-	src/IMG_xv.c	\
-	src/IMG_xxx.c
+	src/IMG.c               \
+	src/IMG_ani.c           \
+	src/IMG_anim_decoder.c  \
+	src/IMG_anim_encoder.c  \
+	src/IMG_avif.c          \
+	src/IMG_bmp.c           \
+	src/IMG_gif.c           \
+	src/IMG_gpu.c           \
+	src/IMG_jpg.c           \
+	src/IMG_jxl.c           \
+	src/IMG_lbm.c           \
+	src/IMG_libpng.c        \
+	src/IMG_pcx.c           \
+	src/IMG_png.c           \
+	src/IMG_pnm.c           \
+	src/IMG_qoi.c           \
+	src/IMG_stb.c           \
+	src/IMG_svg.c           \
+	src/IMG_tga.c           \
+	src/IMG_tif.c           \
+	src/IMG_webp.c          \
+	src/IMG_xcf.c           \
+	src/IMG_xpm.c           \
+	src/IMG_xv.c            \
+	src/IMG_xxx.c           \
+	src/xmlman.c
 
-OBJECTS = $(SOURCES:.c=.o)
+OBJECTS     = $(SOURCES:.c=.o)
+COREOBJECTS = MorphOS/IMG_library.o MorphOS/IMG_startup.o MorphOS/IMG_stubs.o
+DEPS        = $(OBJECTS:.o=.d) $(COREOBJECTS:.o=.d)
 
-all: $(TARGET) withall testimage testanimation showanim showimage showclipboard
+# Rebuild everything when the backend changes
+BUILDSTAMP = .build-$(JPGPNG)
 
-# Build the full "fat" SDL3_image archive with all enabled external libraries
-withall: libSDL3_image.a
+.PHONY: all sdklibs glue headers checklvo tests sdk install clean dump
 
-libSDL3_image.a: libSDL3_image_light.a
-	@rm -f $@ merge.mri
-	@echo "CREATE $@" > merge.mri
-	@echo "ADDLIB libSDL3_image_light.a" >> merge.mri
-	@for L in $(MERGE_LIBS); do echo "ADDLIB $$L" >> merge.mri; done
-	@echo "SAVE" >> merge.mri
-	@echo "END" >> merge.mri
-	$(AR) -M < merge.mri
-	$(RANLIB) $@
-	
-$(TARGET): $(OBJECTS)
+all: $(LIBRARY) sdklibs checklvo
+	@echo All done
+
+$(BUILDSTAMP):
+	@rm -f .build-*
+	@touch $@
+
+src/%.o: src/%.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
+
+MorphOS/%.o: MorphOS/%.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) $(CFLAGS) $(DEPFLAGS) -o $@ -c $<
+
+# The library glue isn't resident code: it runs before r13 is set up.
+# No -D_NO_PPCINLINE here: exec calls must stay inline, the libabox stubs
+# linked with -mresident32 load SysBase through r13.
+MorphOS/IMG_library.o: MorphOS/IMG_library.c $(BUILDSTAMP)
+	$(COMPILING)
+	@$(CC) -noixemul -mcpu=750 -Wall -fno-strict-aliasing $(INCLUDE) $(GLUEDEFS) $(BACKENDDEFS) \
+		-D__AMIGADATE__=\"$(AMIGADATE)\" $(DEPFLAGS) -o $@ -c $<
+
+$(INTERNAL): $(OBJECTS)
 	$(ARCHIVING)
-	@$(AR) crvs $@ $^
+	@rm -f $@
+	@$(AR) crs $@ $^
 
-testimage: test/testimage.c
-	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
-	$(STRIP) --strip-unneeded $@
+$(LIBRARY): $(INTERNAL) $(COREOBJECTS)
+	$(LINKING)
+	@$(CC) -noixemul -nostartfiles -mresident32 -Wl,-Map=sdl3_image.map \
+		$(COREOBJECTS) -o $@.db -L. -lSDL3_image_lib $(LIBS)
+	@$(STRIP) -o $@ --remove-section=.comment $@.db
 
-testanimation: test/testanimation.c
-	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
-	$(STRIP) --strip-unneeded $@
+sdklibs:
+	@$(MAKE) --no-print-directory -C MorphOS/devenv all
 
-showanim: examples/showanim.c
-	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
-	$(STRIP) --strip-unneeded $@
+# Functions the objects define: the others become ##private (LIB_Unsupported)
+glue: $(INTERNAL)
+	$(NM) -g --defined-only $(INTERNAL) | awk 'NF == 3 && ($$2 == "T" || $$2 == "W") { print $$3 }' | sort -u > img_defined.txt
+	$(PYTHON) build-scripts/gen_morphos_lib.py --defined img_defined.txt
+	@rm -f img_defined.txt MorphOS/IMG_library.o MorphOS/IMG_stubs.o
+	@$(MAKE) --no-print-directory -f Makefile.mos headers
 
-showimage: examples/showimage.c
-	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
-	$(STRIP) --strip-unneeded $@
+headers:
+	@echo Creating proto/ppcinline headers
+	@$(CVI) --fd=MorphOS/sdk/fd/sdl3_image_lib.fd --clib=MorphOS/sdk/clib/sdl3_image_protos.h --proto=MorphOS/sdk/proto/sdl3_image.h
+	@$(CVI) --fd=MorphOS/sdk/fd/sdl3_image_lib.fd --clib=MorphOS/sdk/clib/sdl3_image_protos.h --inline=MorphOS/sdk/ppcinline/sdl3_image.h
+	@$(PYTHON) build-scripts/gen_morphos_lib.py --fix-inline MorphOS/sdk/ppcinline/sdl3_image.h
 
-showclipboard: examples/showclipboard.c
-	$(CC) -noixemul -O3 -Wall $< -o $@ $(CDEFS) $(INCLUDE) $(SDL3_LDFLAGS)
-	$(STRIP) --strip-unneeded $@
+checklvo: $(LIBRARY)
+	@$(PYTHON) build-scripts/check_morphos_lvo.py $(LIBRARY).db
 
-# Install headers and libraries into the MorphOS SDK (/gg/usr/local)
+sdk: all
+	mkdir -p $(PREFIX)/include/SDL3_image $(PREFIX)/lib/libb32
+	mkdir -p $(addprefix $(PREFIX)/include/,fd clib proto ppcinline)
+	cp -f include/SDL3_image/SDL_image.h $(PREFIX)/include/SDL3_image/
+	cp -f MorphOS/sdk/fd/sdl3_image_lib.fd $(PREFIX)/include/fd/
+	cp -f MorphOS/sdk/clib/sdl3_image_protos.h $(PREFIX)/include/clib/
+	cp -f MorphOS/sdk/proto/sdl3_image.h $(PREFIX)/include/proto/
+	cp -f MorphOS/sdk/ppcinline/sdl3_image.h $(PREFIX)/include/ppcinline/
+	cp -f MorphOS/devenv/lib/libSDL3_image.a $(PREFIX)/lib/libSDL3_image.a
+	cp -f MorphOS/devenv/lib/libb32/libSDL3_image.a $(PREFIX)/lib/libb32/libSDL3_image.a
+	cp -f MorphOS/devenv/lib/libb32/libSDL3_image-nc.a $(PREFIX)/lib/libb32/libSDL3_image-nc.a
+
+# No dependency: run on MorphOS after building on the cross-compiler, it
+# must not try to rebuild (timestamps, .d paths, python3 for checklvo)
 install:
-	mkdir -p /gg/usr/local/include/SDL3
-	mkdir -p /gg/usr/local/lib
-	cp -r include/SDL3_image /gg/usr/local/include/
-	cp libSDL3_image_light.a /gg/usr/local/lib/libSDL3_image_light.a
-	cp libSDL3_image.a /gg/usr/local/lib/libSDL3_image.a
+	@test -f $(LIBRARY) || { echo "$(LIBRARY) not built: make -f Makefile.mos first"; exit 1; }
+	cp $(LIBRARY) LIBS:
+	-flushlib $(LIBRARY)
+
+# Test programs, linked against the glue libraries (sdl3.library SDK installed)
+# testimage/testanimation go to test/: they load the sample files next to them
+APPS     = test/testimage test/testanimation showimage showanim showclipboard showgpuimage
+APPFLAGS = -noixemul -O2 -Wall $(INCLUDE) $(addprefix -DLOAD_,$(FORMATS)) \
+           -DSAVE_BMP=1 -DSAVE_GIF=1 -DSAVE_JPG=1 -DSAVE_PNG=1 -DSAVE_TGA=1 -DSAVE_WEBP=1
+APPLIBS  = -LMorphOS/devenv/lib -lSDL3_image -L$(PREFIX)/lib -lSDL3_test -lSDL3 -lGL
+
+tests: $(APPS)
+
+test/testimage test/testanimation: %: %.c sdklibs
+	$(LINKING)
+	@$(CC) $(APPFLAGS) $< -o $@ $(APPLIBS)
+	@$(STRIP) --strip-unneeded $@
+
+showimage showanim showclipboard showgpuimage: %: examples/%.c sdklibs
+	$(LINKING)
+	@$(CC) $(APPFLAGS) $< -o $@ $(APPLIBS)
+	@$(STRIP) --strip-unneeded $@
 
 clean:
-	rm -f *.a $(OBJECTS) $(COREOBJECTS) *.s showimage showanim testimage testanimation showclipboard
+	rm -f $(LIBRARY) $(LIBRARY).db $(LIBRARY).s sdl3_image.map $(INTERNAL)
+	rm -f $(OBJECTS) $(COREOBJECTS) $(DEPS) .build-*
+	rm -f $(APPS)
+	@$(MAKE) --no-print-directory -C MorphOS/devenv clean
 
 dump:
-	ppc-morphos-objdump --disassemble-all --reloc showimage >showimage.s
+	$(OBJDUMP) --disassemble-all --reloc $(LIBRARY).db >$(LIBRARY).s
+
+-include $(DEPS)

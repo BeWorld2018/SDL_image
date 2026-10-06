@@ -527,7 +527,6 @@ static bool AddIconEntry(IconEntries *entries, Sint64 offset, int width, int hei
     entry->ncolors = ncolors;
     entry->hot_x = hot_x;
     entry->hot_y = hot_y;
-    entry->surface = NULL;
     return true;
 }
 
