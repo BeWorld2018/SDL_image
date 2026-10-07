@@ -8,12 +8,15 @@
 
 CC      = ppc-morphos-gcc-9 -noixemul
 INCLUDE = -I../../include -I/gg/usr/local/include -I../sdk
-CFLAGS  = -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing
+# Library version = SDL_image version (../IMG_version.h)
+IMGVERSION_H = ../../include/SDL3_image/SDL_image.h
+IMGVERSION   = $(shell awk '$$2 == "SDL_IMAGE_MAJOR_VERSION" { ma = $$3 } $$2 == "SDL_IMAGE_MINOR_VERSION" { mi = $$3 } $$2 == "SDL_IMAGE_MICRO_VERSION" { mc = $$3 } END { printf "-DIMG_LIB_MAJOR=%d -DIMG_LIB_MINOR=%d -DIMG_LIB_MICRO=%d -DIMG_LIB_REVISION=%d", ma, mi, mc, mi * 100 + mc }' $(IMGVERSION_H))
+CFLAGS  = -mcpu=750 -mtune=7450 -O2 $(INCLUDE) -Wall -Wno-pointer-sign -fno-strict-aliasing $(IMGVERSION)
 AR      = ppc-morphos-ar
 CVI     = /gg/bin/cvinclude.pl
 FD      = ../sdk/fd/sdl3_image_lib.fd
 CLIB    = ../sdk/clib/sdl3_image_protos.h
-DEPS    = sdl-startup.c ../IMG_version.h
+DEPS    = sdl-startup.c ../IMG_version.h $(IMGVERSION_H)
 
 COMPILING = @echo "compiling $@..."
 ARCHIVING = @echo "archiving $@..."

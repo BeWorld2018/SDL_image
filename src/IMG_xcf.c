@@ -34,6 +34,7 @@
 #ifndef SDL_SIZE_MAX
 #define SDL_SIZE_MAX ((size_t)-1)
 #endif
+#define MAX_XCF_SIZE    20000   /* arbitrary limit to avoid integer overflow. */
 
 #ifdef DEBUG
 static char prop_names [][30] = {
@@ -245,7 +246,7 @@ static char *read_string(SDL_IOStream *src)
             return data;
         }
         remaining = SDL_GetIOSize(src) - SDL_TellIO(src);
-        if (tmp <= remaining) {
+        if ((Sint32)tmp > 0 && tmp <= remaining) {
             data = (char *)SDL_malloc(tmp);
             if (data) {
                 if (SDL_ReadIO(src, data, tmp) == tmp) {
@@ -295,6 +296,13 @@ static int xcf_read_property(SDL_IOStream *src, xcf_prop *prop)
         if (!SDL_ReadU32BE(src, &prop->data.colormap.num)) {
             return 0;
         }
+#ifdef __MORPHOS__
+        // an XCF colormap has at most 256 entries; larger values overflow num * 3 on 32-bit
+        if (prop->data.colormap.num > 256) {
+            SDL_SetError("Gimp colormap too large (%u)", (unsigned int)prop->data.colormap.num);
+            return 0;
+        }
+#endif
         prop->data.colormap.cmap = (char *)SDL_malloc(sizeof(char) * prop->data.colormap.num * 3);
         if (!prop->data.colormap.cmap) {
             return 0;
@@ -368,6 +376,13 @@ static xcf_header *read_xcf_header(SDL_IOStream *src)
         free_xcf_header(h);
         return NULL;
     }
+
+    if ((h->width > MAX_XCF_SIZE) || (h->height > MAX_XCF_SIZE)) {
+        SDL_SetError("Gimp image too large (%ux%u)", (unsigned int)h->width, (unsigned int)h->height);
+        free_xcf_header(h);
+        return NULL;
+    }
+
     if (h->sign[9] == 'v' && h->sign[10] >= '0' && h->sign[10] <= '9' && h->sign[11] >= '0' && h->sign[11] <= '9' && h->sign[12] >= '0' && h->sign[12] <= '9')
         h->file_version = (h->sign[10] - '0') * 100 + (h->sign[11] - '0') * 10 + (h->sign[12] - '0');
     else
@@ -446,6 +461,12 @@ static xcf_layer *read_xcf_layer(SDL_IOStream *src, const xcf_header *h)
         return NULL;
     }
 
+    if ((l->width > MAX_XCF_SIZE) || (l->height > MAX_XCF_SIZE)) {
+        SDL_SetError("Gimp layer too large (%ux%u)", (unsigned int)l->width, (unsigned int)l->height);
+        free_xcf_layer(l);
+        return NULL;
+    }
+
     l->name = read_string(src);
 #ifdef DEBUG
     SDL_Log("layer (%d,%d) type=%u '%s'\n", l->width, l->height, l->layer_type, l->name);
@@ -495,6 +516,12 @@ static xcf_channel *read_xcf_channel(SDL_IOStream *src, const xcf_header *h)
         return NULL;
     }
 
+    if ((l->width > MAX_XCF_SIZE) || (l->height > MAX_XCF_SIZE)) {
+        SDL_SetError("Gimp channel too large (%ux%u)", (unsigned int)l->width, (unsigned int)l->height);
+        free_xcf_channel(l);
+        return NULL;
+    }
+
     l->name = read_string(src);
 #ifdef DEBUG
     SDL_Log("channel (%u,%u) '%s'\n", l->width, l->height, l->name);
@@ -521,6 +548,12 @@ static xcf_channel *read_xcf_channel(SDL_IOStream *src, const xcf_header *h)
         case PROP_VISIBLE:
             l->visible = prop.data.visible ? 1 : 0;
             break;
+#ifdef __MORPHOS__
+        case PROP_COLORMAP:
+            // xcf_read_property allocated it: don't leak it
+            SDL_free(prop.data.colormap.cmap);
+            break;
+#endif
         default:
             break;
         }
@@ -555,9 +588,25 @@ static xcf_hierarchy *read_xcf_hierarchy(SDL_IOStream *src, const xcf_header *he
         return NULL;
     }
 
+    if ((h->width > MAX_XCF_SIZE) || (h->height > MAX_XCF_SIZE)) {
+        SDL_SetError("Gimp image too large (%ux%u)", (unsigned int)h->width, (unsigned int)h->height);
+        free_xcf_hierarchy(h);
+        return NULL;
+    }
+
     i = 0;
     do {
+#ifdef __MORPHOS__
+        // check the realloc result instead of writing through NULL
+        Uint64 *level_file_offsets = (Uint64 *)SDL_realloc(h->level_file_offsets, sizeof(*h->level_file_offsets) * (i+1));
+        if (!level_file_offsets) {
+            free_xcf_hierarchy(h);
+            return NULL;
+        }
+        h->level_file_offsets = level_file_offsets;
+#else
         h->level_file_offsets = (Uint64 *)SDL_realloc(h->level_file_offsets, sizeof(*h->level_file_offsets) * (i+1));
+#endif
         h->level_file_offsets[i] = read_offset(src, head);
     } while (h->level_file_offsets[i++]);
 
@@ -581,15 +630,26 @@ static xcf_level *read_xcf_level(SDL_IOStream *src, const xcf_header *h)
     if (!l) {
         return NULL;
     }
-    if (!SDL_ReadU32BE (src, &l->width) ||
-        !SDL_ReadU32BE (src, &l->height)) {
+    if (!SDL_ReadU32BE(src, &l->width) ||
+        !SDL_ReadU32BE(src, &l->height)) {
+        free_xcf_level(l);
+        return NULL;
+    }
+
+    if ((l->width > MAX_XCF_SIZE) || (l->height > MAX_XCF_SIZE)) {
+        SDL_SetError("Gimp level too large (%ux%u)", (unsigned int)l->width, (unsigned int)l->height);
         free_xcf_level(l);
         return NULL;
     }
 
     i = 0;
     do {
-        l->tile_file_offsets = (Uint64 *)SDL_realloc(l->tile_file_offsets, sizeof(*l->tile_file_offsets) * (i+1));
+        Uint64 *tile_file_offsets = (Uint64 *)SDL_realloc(l->tile_file_offsets, sizeof(*l->tile_file_offsets) * (i+1));
+        if (!tile_file_offsets) {
+            free_xcf_level(l);
+            return NULL;
+        }
+        l->tile_file_offsets = tile_file_offsets;
         l->tile_file_offsets[i] = read_offset(src, h);
     } while (l->tile_file_offsets[i++]);
 
@@ -604,6 +664,11 @@ static void free_xcf_tile(unsigned char *t)
 static unsigned char *load_xcf_tile_none (SDL_IOStream *src, size_t len, int bpp, int x, int y)
 {
     unsigned char *load = NULL;
+
+    if (len < (size_t)(x * y * bpp)) {
+        SDL_SetError("Gimp image invalid tile offsets");
+        return NULL;
+    }
 
     load = (unsigned char *)SDL_malloc(len);
     if (load != NULL) {
@@ -648,17 +713,34 @@ static unsigned char *load_xcf_tile_rle(SDL_IOStream *src, size_t len, int bpp, 
         size = x*y;
 
         while (size > 0) {
+#ifdef __MORPHOS__
+            // the opcode byte must be inside the data actually read
+            if ((size_t)(t - load) >= amount_read) {
+                break;    /* bogus data */
+            }
+#endif
             val = *t++;
 
             length = val;
             if (length >= 128) {
                 length = 255 - (length - 1);
                 if (length == 128) {
+#ifdef __MORPHOS__
+                    // the 2-byte long length must be inside the data too
+                    if ((size_t)(t - load) + 2 > amount_read) {
+                        break;    /* bogus data */
+                    }
+#endif
                     length = (*t << 8) + t[1];
                     t += 2;
                 }
 
+#ifdef __MORPHOS__
+                // a copy run ending exactly on the last byte read is valid
+                if (((size_t)(t - load) + length) > amount_read) {
+#else
                 if (((size_t)(t - load) + length) >= amount_read) {
+#endif
                     break;    /* bogus data */
                 } else if (length > size) {
                     break;    /* bogus data */
@@ -676,6 +758,12 @@ static unsigned char *load_xcf_tile_rle(SDL_IOStream *src, size_t len, int bpp, 
             } else {
                 length += 1;
                 if (length == 128) {
+#ifdef __MORPHOS__
+                    // the 2-byte long length must be inside the data
+                    if ((size_t)(t - load) + 2 > amount_read) {
+                        break;    /* bogus data */
+                    }
+#endif
                     length = (*t << 8) + t[1];
                     t += 2;
                 }
@@ -741,7 +829,6 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
     xcf_level      *level;
     unsigned char  *tile;
     Uint8          *p8;
-    Uint32         *p;
     int            i, j;
     Uint32         x, y, tx, ty, ox, oy;
     Uint32         *row;
@@ -762,19 +849,19 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
         return 1;
     }
 
-    if ((hierarchy->width > 20000) || (hierarchy->height > 20000)) {  /* arbitrary limit to avoid integer overflow. */
-        SDL_SetError("Gimp image too large (%ux%u)", (unsigned int) hierarchy->width, (unsigned int) hierarchy->height);
-        free_xcf_hierarchy(hierarchy);
-        return 1;
-    }
-
     level = NULL;
     for (i = 0; hierarchy->level_file_offsets[i]; i++) {
         if (SDL_SeekIO(src, hierarchy->level_file_offsets[i], SDL_IO_SEEK_SET) < 0)
             break;
+
         if (i > 0) /* skip level except the 1st one, just like GIMP does */
             continue;
+
         level = read_xcf_level(src, head);
+        if (!level) {
+            free_xcf_hierarchy(hierarchy);
+            return 1;
+        }
 
         ty = tx = 0;
         for (j = 0; level->tile_file_offsets[j]; j++) {
@@ -803,7 +890,6 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
             }
 
             p8 = tile;
-            p = (Uint32 *) p8;
 
             /* Bounds check: reject layer if tile data exceeds buffer */
             if ((Uint64)ox * oy * hierarchy->bpp > (Uint64)(hierarchy->width * hierarchy->height * hierarchy->bpp)) {
@@ -868,6 +954,10 @@ do_layer_surface(SDL_Surface *surface, SDL_IOStream *src, xcf_header *head, xcf_
                         break;
                     default:
                         SDL_SetError("Unknown Gimp image type (%" SDL_PRIu32 ")", head->image_type);
+#ifdef __MORPHOS__
+                        // don't leak the tile
+                        free_xcf_tile(tile);
+#endif
                         if (hierarchy) {
                             free_xcf_hierarchy(hierarchy);
                         }
@@ -983,7 +1073,17 @@ SDL_Surface *IMG_LoadXCF_IO(SDL_IOStream *src)
     offsets = 0;
 
     while ((offset = read_offset(src, head)) != 0) {
+#ifdef __MORPHOS__
+        // check the realloc result instead of writing through NULL
+        Uint64 *layer_file_offsets = (Uint64 *)SDL_realloc(head->layer_file_offsets, sizeof(Uint64) * (offsets + 1));
+        if (!layer_file_offsets) {
+            error = "Out of memory";
+            goto done;
+        }
+        head->layer_file_offsets = layer_file_offsets;
+#else
         head->layer_file_offsets = (Uint64 *)SDL_realloc(head->layer_file_offsets, sizeof(Uint64) * (offsets + 1));
+#endif
         head->layer_file_offsets[offsets] = offset;
         offsets++;
     }
@@ -1003,7 +1103,15 @@ SDL_Surface *IMG_LoadXCF_IO(SDL_IOStream *src)
         layer = read_xcf_layer(src, head);
         if (layer != NULL) {
             if (layer->visible) {
-                do_layer_surface(lays, src, head, layer, load_tile);
+                if (do_layer_surface(lays, src, head, layer, load_tile) != 0) {
+                    error = SDL_GetError();
+#ifdef __MORPHOS__
+                    // don't leak the layer surface and the layer
+                    SDL_DestroySurface(lays);
+                    free_xcf_layer(layer);
+#endif
+                    goto done;
+                }
                 rs.x = 0;
                 rs.y = 0;
                 rs.w = layer->width;
@@ -1024,7 +1132,17 @@ SDL_Surface *IMG_LoadXCF_IO(SDL_IOStream *src)
 
     /* read channels */
     while ((offset = read_offset (src, head)) != 0) {
+#ifdef __MORPHOS__
+        // check the realloc result: on failure the old array is still valid and freed at done
+        xcf_channel **new_channel = (xcf_channel **)SDL_realloc(channel, sizeof(xcf_channel *) * (chnls + 1));
+        if (!new_channel) {
+            error = "Out of memory";
+            goto done;
+        }
+        channel = new_channel;
+#else
         channel = (xcf_channel **)SDL_realloc(channel, sizeof(xcf_channel *) * (chnls + 1));
+#endif
         fp = SDL_TellIO(src);
         if (SDL_SeekIO(src, offset, SDL_IO_SEEK_SET) < 0) {
             error = "invalid channel offset";

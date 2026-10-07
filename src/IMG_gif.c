@@ -28,6 +28,8 @@
 #include "IMG_anim_encoder.h"
 #include "IMG_anim_decoder.h"
 
+#define IMG_PROP_ANIMATION_DECODER_CREATE_GIF_SINGLE_IMAGE_BOOLEAN "SDL_image.animation_decoder.create.gif.single_image"
+
 // We will have the saving GIF feature by default
 #if !defined(SAVE_GIF)
 #define SAVE_GIF 1
@@ -372,6 +374,10 @@ LWZReadByte(SDL_IOStream *src, int flag, int input_code_size, State_t * state)
                 RWSetMsg("invalid LWZ data");
                 return -3;
             }
+            if (state->sp == &state->stack[SDL_arraysize(state->stack)]) {
+                RWSetMsg("invalid LWZ data");
+                return -3;
+            }
             *state->sp++ = state->table[1][code];
             if (code == state->table[0][code]) {
                 RWSetMsg("circular table entry BIG ERROR");
@@ -382,6 +388,10 @@ LWZReadByte(SDL_IOStream *src, int flag, int input_code_size, State_t * state)
 
         /* Guard against buffer overruns */
         if (code < 0 || code >= (1 << MAX_LWZ_BITS)) {
+            RWSetMsg("invalid LWZ data");
+            return -4;
+        }
+        if (state->sp == &state->stack[SDL_arraysize(state->stack)]) {
             RWSetMsg("invalid LWZ data");
             return -4;
         }
@@ -435,6 +445,15 @@ ReadImage(SDL_IOStream * src, int len, int height, int cmapSize,
             ;
         return NULL;
     }
+#ifdef __MORPHOS__
+    // an empty frame has no pixel buffer: the write loop below would run unbounded
+    if (len <= 0 || height <= 0) {
+        while (LWZReadByte(src, FALSE, c, state) >= 0)
+            ;
+        RWSetMsg("invalid GIF frame size");
+        return NULL;
+    }
+#endif
     image = ImageNewCmap(len, height, cmapSize);
     if (!image) {
         return NULL;
@@ -442,6 +461,10 @@ ReadImage(SDL_IOStream * src, int len, int height, int cmapSize,
 
     palette = SDL_CreateSurfacePalette(image);
     if (!palette) {
+#ifdef __MORPHOS__
+        // don't leak the frame surface
+        SDL_DestroySurface(image);
+#endif
         return NULL;
     }
     if (cmapSize > palette->ncolors) {
@@ -520,6 +543,8 @@ struct IMG_AnimationDecoderContext
     int frame_count;             /* Total number of frames seen */
     int current_frame;           /* Current frame index */
 
+    bool single_frame;           /* Whether this decoder will return a single frame */
+
     bool got_header;             /* Whether we've read the GIF header */
     bool got_eof;                /* Whether we've reached the end of the GIF */
 
@@ -542,7 +567,7 @@ struct IMG_AnimationDecoderContext
     bool ignore_props;
 };
 
-static bool IMG_AnimationDecoderGetGIFHeader(IMG_AnimationDecoder *decoder, char**comment, int *loopCount)
+static bool IMG_AnimationDecoderGetGIFHeader(IMG_AnimationDecoder *decoder, char **comment, int *loopCount)
 {
     if (comment) {
         *comment = NULL;
@@ -675,10 +700,18 @@ static bool IMG_AnimationDecoderGetGIFHeader(IMG_AnimationDecoder *decoder, char
                                 size_t new_len = current_len + sub_block_size;
                                 char *temp_comment = SDL_realloc(c, new_len + 1);
                                 if (!temp_comment) {
+#ifdef __MORPHOS__
+                                    // don't leak the partial comment
+                                    SDL_free(c);
+#endif
                                     return SDL_SetError("Failed to allocate memory for GIF comment");
                                 }
                                 c = temp_comment;
                                 if (!ReadOK(src, c + current_len, sub_block_size)) {
+#ifdef __MORPHOS__
+                                    // don't leak the partial comment
+                                    SDL_free(c);
+#endif
                                     return SDL_SetError("Error reading GIF comment data");
                                 }
                                 current_len = new_len;
@@ -687,6 +720,10 @@ static bool IMG_AnimationDecoderGetGIFHeader(IMG_AnimationDecoder *decoder, char
                                 c[current_len] = '\0';
                             }
 
+#ifdef __MORPHOS__
+                            // a later comment extension replaces the previous one: free it
+                            SDL_free(*comment);
+#endif
                             *comment = c;
                         }
                     } break;
@@ -715,29 +752,31 @@ static bool IMG_AnimationDecoderGetGIFHeader(IMG_AnimationDecoder *decoder, char
             SDL_SeekIO(src, stream_pos, SDL_IO_SEEK_SET);
         }
 
-        if (!ctx->canvas) {
-            ctx->canvas = SDL_CreateSurface(ctx->width, ctx->height, SDL_PIXELFORMAT_RGBA32);
+        if (!ctx->single_frame) {
             if (!ctx->canvas) {
-                return SDL_SetError("Failed to create canvas surface");
+                ctx->canvas = SDL_CreateSurface(ctx->width, ctx->height, SDL_PIXELFORMAT_RGBA32);
+                if (!ctx->canvas) {
+                    return SDL_SetError("Failed to create canvas surface");
+                }
+
+                if (!SDL_FillSurfaceRect(ctx->canvas, NULL, 0)) {
+                    SDL_DestroySurface(ctx->canvas);
+                    ctx->canvas = NULL;
+                    return SDL_SetError("Failed to fill canvas surface with transparent color");
+                }
             }
 
-            if (!SDL_FillSurfaceRect(ctx->canvas, NULL, 0)) {
-                SDL_DestroySurface(ctx->canvas);
-                ctx->canvas = NULL;
-                return SDL_SetError("Failed to fill canvas surface with transparent color");
-            }
-        }
-
-        if (!ctx->prev_canvas) {
-            ctx->prev_canvas = SDL_CreateSurface(ctx->width, ctx->height, SDL_PIXELFORMAT_RGBA32);
             if (!ctx->prev_canvas) {
-                return SDL_SetError("Failed to create previous canvas surface");
-            }
+                ctx->prev_canvas = SDL_CreateSurface(ctx->width, ctx->height, SDL_PIXELFORMAT_RGBA32);
+                if (!ctx->prev_canvas) {
+                    return SDL_SetError("Failed to create previous canvas surface");
+                }
 
-            if (!SDL_FillSurfaceRect(ctx->prev_canvas, NULL, 0)) {
-                SDL_DestroySurface(ctx->prev_canvas);
-                ctx->prev_canvas = NULL;
-                return SDL_SetError("Failed to fill previous canvas surface with transparent color");
+                if (!SDL_FillSurfaceRect(ctx->prev_canvas, NULL, 0)) {
+                    SDL_DestroySurface(ctx->prev_canvas);
+                    ctx->prev_canvas = NULL;
+                    return SDL_SetError("Failed to fill previous canvas surface with transparent color");
+                }
             }
         }
 
@@ -766,7 +805,7 @@ static bool IMG_AnimationDecoderReset_Internal(IMG_AnimationDecoder *decoder)
     ctx->got_header = false;
     ctx->got_eof = false;
     ctx->last_disposal = GIF_DISPOSE_NONE;
-    SDL_Rect r = {0};
+    SDL_Rect r = {0,0,0,0};
     ctx->restore_area = r;
 
     // We don't care about metadata when resetting to re-read.
@@ -847,6 +886,19 @@ static bool IMG_AnimationDecoderGetNextFrame_Internal(IMG_AnimationDecoder *deco
             }
         }
 
+#ifdef __MORPHOS__
+        // skip empty (0 width or height) frames: consume their data, produce no frame
+        if (width <= 0 || height <= 0) {
+            ReadImage(src, width, height, bitPixel, localColorMap, grayScale,
+                      BitSet(ctx->buf[8], INTERLACE), 1, &ctx->state);
+            ctx->state.Gif89.transparent = -1;
+            ctx->state.Gif89.delayTime = -1;
+            ctx->state.Gif89.inputFlag = -1;
+            ctx->state.Gif89.disposal = GIF_DISPOSE_NA;
+            continue;
+        }
+#endif
+
         switch (ctx->last_disposal) {
         case GIF_DISPOSE_NONE:
             /* Leave canvas as is */
@@ -854,7 +906,12 @@ static bool IMG_AnimationDecoderGetNextFrame_Internal(IMG_AnimationDecoder *deco
 
         case GIF_DISPOSE_RESTORE_BACKGROUND:
         {
+#ifdef __MORPHOS__
+            // single-frame mode may have no canvas yet: nothing to clear then
+            if (ctx->canvas && !SDL_FillSurfaceRect(ctx->canvas, &ctx->restore_area, 0)) {
+#else
             if (!SDL_FillSurfaceRect(ctx->canvas, &ctx->restore_area, 0)) {
+#endif
                 return SDL_SetError("Failed to fill canvas with background color");
             }
         } break;
@@ -875,7 +932,13 @@ static bool IMG_AnimationDecoderGetNextFrame_Internal(IMG_AnimationDecoder *deco
 
         /* If current disposal method is RESTORE_PREVIOUS, save current canvas */
         if (ctx->state.Gif89.disposal == GIF_DISPOSE_RESTORE_PREVIOUS) {
+#ifdef __MORPHOS__
+            // single-frame mode has no prev_canvas (nor canvas) to save
+            if (ctx->prev_canvas && ctx->canvas &&
+                !SDL_BlitSurface(ctx->canvas, NULL, ctx->prev_canvas, NULL)) {
+#else
             if (!SDL_BlitSurface(ctx->canvas, NULL, ctx->prev_canvas, NULL)) {
+#endif
                 return SDL_SetError("Failed to save current canvas for restoration");
             }
         } else if (ctx->state.Gif89.disposal == GIF_DISPOSE_RESTORE_BACKGROUND) {
@@ -894,31 +957,48 @@ static bool IMG_AnimationDecoderGetNextFrame_Internal(IMG_AnimationDecoder *deco
                               BitSet(ctx->buf[8], INTERLACE), 0, &ctx->state);
         }
 
-      if (!image) {
-          // Incorrect animation is harder to detect than a direct failure,
-          // so it's better to fail than try to animate a GIF without a,
-          // full set of frames it has in the file.
+        if (!image) {
+            // Incorrect animation is harder to detect than a direct failure,
+            // so it's better to fail than try to animate a GIF without the
+            // full set of frames it has in the file.
 
-          // Only set the error if ReadImage did not do it.
-          if (SDL_GetError()[0] == '\0') {
-              return SDL_SetError("Failed to decode frame.");
-          }
+            // Only set the error if ReadImage did not do it.
+            if (SDL_GetError()[0] == '\0') {
+                return SDL_SetError("Failed to decode frame.");
+            }
 
-          return false;
-      }
-
-        /* Composite the frame onto the canvas */
-        SDL_Rect dest = { left, top, width, height };
-        if (!SDL_BlitSurface(image, NULL, ctx->canvas, &dest)) {
-            SDL_DestroySurface(image);
-            return SDL_SetError("Failed to blit frame onto canvas");
+            return false;
         }
 
-        /* Store the frame in the output array */
-        retval = SDL_DuplicateSurface(ctx->canvas);
-        if (!retval) {
+        if (ctx->single_frame &&
+            left == 0 && top == 0 && image->w == ctx->width && image->h == ctx->height) {
+            retval = image;
+        } else {
+            /* Composite the frame onto the canvas */
+            SDL_Rect dest = { left, top, width, height };
+#ifdef __MORPHOS__
+            // single-frame mode doesn't create the canvas up front: create it for a partial first frame
+            if (!ctx->canvas) {
+                ctx->canvas = SDL_CreateSurface(ctx->width, ctx->height, SDL_PIXELFORMAT_RGBA32);
+                if (!ctx->canvas || !SDL_FillSurfaceRect(ctx->canvas, NULL, 0)) {
+                    SDL_DestroySurface(ctx->canvas);
+                    ctx->canvas = NULL;
+                    SDL_DestroySurface(image);
+                    return SDL_SetError("Failed to create canvas surface");
+                }
+            }
+#endif
+            if (!SDL_BlitSurface(image, NULL, ctx->canvas, &dest)) {
+                SDL_DestroySurface(image);
+                return SDL_SetError("Failed to blit frame onto canvas");
+            }
+
+            /* Store the frame in the output array */
+            retval = SDL_DuplicateSurface(ctx->canvas);
             SDL_DestroySurface(image);
-            return SDL_SetError("Failed to duplicate frame surface");
+            if (!retval) {
+                return SDL_SetError("Failed to duplicate frame surface");
+            }
         }
 
         if (ctx->state.Gif89.delayTime < 0 && ctx->last_duration) {
@@ -932,8 +1012,6 @@ static bool IMG_AnimationDecoderGetNextFrame_Internal(IMG_AnimationDecoder *deco
         ctx->last_duration = *duration;
 
         ctx->last_disposal = ctx->state.Gif89.disposal;
-
-        SDL_DestroySurface(image);
 
         ctx->state.Gif89.transparent = -1;
         ctx->state.Gif89.delayTime = -1;
@@ -994,8 +1072,9 @@ bool IMG_CreateGIFAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Properties
     ctx->current_delay = 100;
     ctx->current_disposal = GIF_DISPOSE_NA;
     ctx->last_disposal = GIF_DISPOSE_NONE;
-    SDL_Rect r = {0};
+    SDL_Rect r = {0,0,0,0};
     ctx->restore_area = r;
+    ctx->single_frame = SDL_GetBooleanProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_GIF_SINGLE_IMAGE_BOOLEAN, false);
 
     decoder->ctx = ctx;
     decoder->Reset = IMG_AnimationDecoderReset_Internal;
@@ -1005,6 +1084,11 @@ bool IMG_CreateGIFAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Properties
     char *comment = NULL;
     int loop_count = 1;
     if (!IMG_AnimationDecoderGetGIFHeader(decoder, &comment, &loop_count)) {
+#ifdef __MORPHOS__
+        // free the comment, canvases and context (the caller may reuse decoder->ctx)
+        SDL_free(comment);
+        IMG_AnimationDecoderClose_Internal(decoder);
+#endif
         return false;
     }
 
@@ -1065,7 +1149,17 @@ bool IMG_isGIF(SDL_IOStream *src)
 /* Load a GIF type image from an SDL datasource */
 SDL_Surface *IMG_LoadGIF_IO(SDL_IOStream *src)
 {
-    IMG_AnimationDecoder *decoder = IMG_CreateAnimationDecoder_IO(src, false, "gif");
+    SDL_PropertiesID props = SDL_CreateProperties();
+    if (!props) {
+        return NULL;
+    }
+
+    SDL_SetPointerProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_IOSTREAM_POINTER, src);
+    SDL_SetBooleanProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_IOSTREAM_AUTOCLOSE_BOOLEAN, false);
+    SDL_SetStringProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_TYPE_STRING, "gif");
+    SDL_SetBooleanProperty(props, IMG_PROP_ANIMATION_DECODER_CREATE_GIF_SINGLE_IMAGE_BOOLEAN, true);
+    IMG_AnimationDecoder *decoder = IMG_CreateAnimationDecoderWithProperties(props);
+    SDL_DestroyProperties(props);
     if (!decoder) {
         return NULL;
     }
@@ -1999,9 +2093,16 @@ static int quantizeSurfaceToIndexedPixels(SDL_Surface *psurf, uint8_t palette[][
     }
 
     Uint32 colorKey = 0;
+#ifdef __MORPHOS__
+    // without a colorkey, colorKey 0 would turn every index-0 pixel transparent
+    bool hasColorKey = false;
+#endif
     if (transparentIndex >= 0) {
         if (SDL_SurfaceHasColorKey(psurf)) {
             SDL_GetSurfaceColorKey(psurf, &colorKey);
+#ifdef __MORPHOS__
+            hasColorKey = true;
+#endif
         }
         hasTransparency = true;
     }
@@ -2054,7 +2155,11 @@ static int quantizeSurfaceToIndexedPixels(SDL_Surface *psurf, uint8_t palette[][
                     uint8_t index = src_row[x];
                     uint32_t pixel = index;
 
+#ifdef __MORPHOS__
+                    if (hasColorKey && pixel == colorKey) {
+#else
                     if (pixel == colorKey) {
+#endif
                         dst_row[x] = transparentIndex;
                     } else {
                         dst_row[x] = index;
@@ -2606,6 +2711,14 @@ static bool AnimationEncoder_AddFrame(IMG_AnimationEncoder *encoder, SDL_Surface
     uint8_t palette_bits_per_pixel = 0;
     uint8_t localColorTable[256][3];
     bool useLocalColorTable = !ctx->firstFrame;
+#ifdef __MORPHOS__
+    // reserve/declare the transparent index only if the frame has a colorkey or alpha (LUT mode shares one palette: keep it)
+    int transparentIndex = ctx->transparentColorIndex;
+    if (!ctx->use_lut && transparentIndex != -1 &&
+        !SDL_SurfaceHasColorKey(surface) && !SDL_ISPIXELFORMAT_ALPHA(surface->format)) {
+        transparentIndex = -1;
+    }
+#endif
 
     if (!io) {
         SDL_SetError("SDL_IOStream pointer (stream->dst) is NULL.");
@@ -2637,7 +2750,11 @@ static bool AnimationEncoder_AddFrame(IMG_AnimationEncoder *encoder, SDL_Surface
         ctx->width = (uint16_t)surface->w;
         ctx->height = (uint16_t)surface->h;
 
+#ifdef __MORPHOS__
+        if (quantizeSurfaceToIndexedPixels(surface, ctx->globalColorTable, numColors, indexedPixels, transparentIndex) != 0) {
+#else
         if (quantizeSurfaceToIndexedPixels(surface, ctx->globalColorTable, numColors, indexedPixels, ctx->transparentColorIndex) != 0) {
+#endif
             goto error;
         }
 
@@ -2688,15 +2805,25 @@ static bool AnimationEncoder_AddFrame(IMG_AnimationEncoder *encoder, SDL_Surface
             }
         } else {
             // For subsequent frames, create a new optimal palette
+#ifdef __MORPHOS__
+            if (quantizeSurfaceToIndexedPixels(surface, localColorTable, numColors, indexedPixels, transparentIndex) != 0) {
+#else
             if (quantizeSurfaceToIndexedPixels(surface, localColorTable, numColors, indexedPixels, ctx->transparentColorIndex) != 0) {
+#endif
                 goto error;
             }
         }
     }
 
     uint16_t resolvedDuration = (uint16_t)IMG_GetEncoderDuration(encoder, duration, 100);
+#ifdef __MORPHOS__
+    // per-frame transparent index; keep the stream disposal so a later transparent frame doesn't show this one
+    uint8_t disposalMethod = (ctx->transparentColorIndex != -1) ? 2 : 1;
+    if (writeGraphicsControlExtension(io, resolvedDuration, transparentIndex, disposalMethod) != 0) {
+#else
     uint8_t disposalMethod = (ctx->transparentColorIndex != -1) ? 2 : 1;
     if (writeGraphicsControlExtension(io, resolvedDuration, ctx->transparentColorIndex, disposalMethod) != 0) {
+#endif
         goto error;
     }
 
@@ -2838,6 +2965,12 @@ bool IMG_CreateGIFAnimationEncoder(IMG_AnimationEncoder *encoder, SDL_Properties
 bool IMG_SaveGIF_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
 {
     if (!IMG_VerifyCanSaveSurface(surface)) {
+#ifdef __MORPHOS__
+        // honour closeio on early failure
+        if (dst && closeio) {
+            SDL_CloseIO(dst);
+        }
+#endif
         return false;
     }
     IMG_AnimationEncoder *encoder = IMG_CreateAnimationEncoder_IO(dst, closeio, "gif");

@@ -597,7 +597,16 @@ bool IMG_CreateWEBPAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Propertie
         return false;
     }
 
+#ifdef __MORPHOS__
+    // the data is read from decoder->start, not from the beginning of the stream
+    if (decoder->start < 0 || stream_size <= decoder->start) {
+        IMG_AnimationDecoderClose_Internal(decoder);
+        return SDL_SetError("Stream has no data after the start offset");
+    }
+    decoder->ctx->raw_data_size = (size_t)(stream_size - decoder->start);
+#else
     decoder->ctx->raw_data_size = (size_t)stream_size;
+#endif
     decoder->ctx->raw_data = (uint8_t *)SDL_malloc(decoder->ctx->raw_data_size);
     if (!decoder->ctx->raw_data) {
         IMG_AnimationDecoderClose_Internal(decoder);
@@ -668,7 +677,6 @@ bool IMG_CreateWEBPAnimationDecoder(IMG_AnimationDecoder *decoder, SDL_Propertie
 
     decoder->ctx->canvas = SDL_CreateSurface(width, height, has_alpha ? SDL_PIXELFORMAT_RGBA32 : SDL_PIXELFORMAT_RGBX32);
     if (!decoder->ctx->canvas) {
-        lib.WebPDemuxDelete(decoder->ctx->demuxer);
         IMG_AnimationDecoderClose_Internal(decoder);
         return false;
     }
@@ -976,11 +984,23 @@ static bool IMG_CloseWEBPAnimation(IMG_AnimationEncoder *encoder)
         }
 
         if (!pdata.bytes || pdata.size < 1) {
+#ifdef __MORPHOS__
+            // pdata is local to this block: free it before leaving
+            if (pdata.bytes) {
+                lib.WebPFree((void *)pdata.bytes);
+            }
+#endif
             error = "WebPAnimEncoderAssemble() returned invalid data";
             goto done;
         }
 
         mux = lib.WebPMuxCreateInternal(&pdata, 1, WEBP_MUX_ABI_VERSION);
+#ifdef __MORPHOS__
+        // the mux copied the data (copy_data = 1), pdata is no longer needed
+        lib.WebPFree((void *)pdata.bytes);
+        pdata.bytes = NULL;
+        pdata.size = 0;
+#endif
         if (!mux) {
             error = "WebPMuxCreateInternal() failed. This usually happens if you tried to encode a single frame only.";
             goto done;

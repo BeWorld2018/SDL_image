@@ -50,11 +50,12 @@ int SAVEDS AMIGA_Startup(struct SDL3ImageLibrary *LibBase)
 
 	/* Same task as the program: sdl3.library returns the program's own
 	   child base, so both share one SDL state. sdl3.library version =
-	   SDL version: at least the SDL we were built against. */
+	   SDL version (REVISION = minor * 100 + micro): any micro
+	   release of the SDL we were built against has our functions. */
 	if ((SDL3Base = OpenLibrary("sdl3.library", SDL_MAJOR_VERSION)) == NULL)
 		return 0;
 
-	if (!LIB_MINVER(SDL3Base, SDL_MAJOR_VERSION, SDL_MINOR_VERSION))
+	if (!LIB_MINVER(SDL3Base, SDL_MAJOR_VERSION, SDL_MINOR_VERSION * 100))
 		return 0;
 
 	return 1;

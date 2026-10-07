@@ -107,6 +107,12 @@ SDL_Surface *IMG_LoadPNG_IO(SDL_IOStream *src)
 bool IMG_SavePNG_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
 {
     if (!IMG_VerifyCanSaveSurface(surface)) {
+#ifdef __MORPHOS__
+        // honour closeio on early failure
+        if (dst && closeio) {
+            SDL_CloseIO(dst);
+        }
+#endif
         return false;
     }
 #ifdef SDL_IMAGE_LIBPNG

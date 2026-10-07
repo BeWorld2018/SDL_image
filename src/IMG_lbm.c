@@ -142,7 +142,8 @@ SDL_Surface *IMG_LoadLBM_IO(SDL_IOStream *src )
 
     nbcolors = 0;
 
-    SDL_memset( &bmhd, 0, sizeof( BMHD ) );
+    SDL_zeroa(colormap);
+    SDL_zero(bmhd);
     flagHAM = 0;
     flagEHB = 0;
 
@@ -240,6 +241,13 @@ SDL_Surface *IMG_LoadLBM_IO(SDL_IOStream *src )
         SDL_SetError("LBM: invalid number of bitplanes (%u)", nbplanes);
         goto done;
     }
+#ifdef __MORPHOS__
+    // HAM decoding only works for HAM6/HAM8: other plane counts index colormap out of bounds
+    if ( !pbm && flagHAM && nbplanes != 6 && nbplanes != 8 ) {
+        error="invalid number of bitplanes for HAM";
+        goto done;
+    }
+#endif
 
     if ( pbm )                         /* File format : 'Packed Bitmap' */
     {
@@ -279,7 +287,12 @@ SDL_Surface *IMG_LoadLBM_IO(SDL_IOStream *src )
     /* Update palette information */
 
     /* There is no palette in 24 bits ILBM file */
+#ifdef __MORPHOS__
+    // a CMAP in a 24-plane ILBM must be ignored: an RGB24 surface has no palette
+    if ( nbcolors>0 && flagHAM==0 && nbplanes != 24 )
+#else
     if ( nbcolors>0 && flagHAM==0 )
+#endif
     {
         /* FIXME: Should this include the stencil? See comment below */
         SDL_Palette *palette;
@@ -303,7 +316,7 @@ SDL_Surface *IMG_LoadLBM_IO(SDL_IOStream *src )
         /* The 32 last colors are the same but divided by 2 */
         /* Some Amiga pictures save 64 colors with 32 last wrong colors, */
         /* they shouldn't !, and here we overwrite these 32 bad colors. */
-        if ( (nbcolors==32 || flagEHB ) && (1<<nbplanes)==64 )
+        if ( (nbplanes == 6) && (flagEHB || nbcolors <= 32) )
         {
             nbcolors = 64;
             ptr = &colormap[0];

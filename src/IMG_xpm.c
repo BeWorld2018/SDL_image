@@ -895,6 +895,20 @@ static int color_to_argb(char *spec, int speclen, Uint32 *argb)
             buf[4] = spec[9];
             buf[5] = spec[10];
             break;
+#ifdef __MORPHOS__
+        case 10:
+            // #RRRGGGBBB: keep the top 2 hex digits of each component
+            buf[0] = spec[1];
+            buf[1] = spec[2];
+            buf[2] = spec[4];
+            buf[3] = spec[5];
+            buf[4] = spec[7];
+            buf[5] = spec[8];
+            break;
+        default:
+            // unknown length: don't parse an uninitialized buffer
+            return 0;
+#endif
         }
         buf[6] = '\0';
         *argb = 0xff000000 | (Uint32)SDL_strtol(buf, NULL, 16);
@@ -942,6 +956,11 @@ static char *get_next_line(char ***lines, SDL_IOStream *src, size_t len)
                 linebufnew = (char *)SDL_realloc(linebuf, buflen);
                 if (!linebufnew) {
                     SDL_free(linebuf);
+#ifdef __MORPHOS__
+                    // load_xpm frees linebuf again at done: avoid a double free
+                    linebuf = NULL;
+                    buflen = 0;
+#endif
                     error = "Out of memory";
                     return NULL;
                 }
@@ -962,6 +981,11 @@ static char *get_next_line(char ***lines, SDL_IOStream *src, size_t len)
                     linebufnew = (char *)SDL_realloc(linebuf, buflen);
                     if (!linebufnew) {
                         SDL_free(linebuf);
+#ifdef __MORPHOS__
+                        // load_xpm frees linebuf again at done: avoid a double free
+                        linebuf = NULL;
+                        buflen = 0;
+#endif
                         error = "Out of memory";
                         return NULL;
                     }
@@ -1035,6 +1059,13 @@ static SDL_Surface *load_xpm(char **xpm, SDL_IOStream *src, bool force_32bit)
         error = "Invalid format description";
         goto done;
     }
+#ifdef __MORPHOS__
+    // the pixel line length w * cpp must fit in an int
+    if (w > SDL_MAX_SINT32 / cpp) {
+        error = "Invalid format description";
+        goto done;
+    }
+#endif
 
     /* Check for allocation overflow */
     if ((size_t)((Uint32)ncolors * cpp)/cpp != (Uint32)ncolors) {
@@ -1086,6 +1117,10 @@ static SDL_Surface *load_xpm(char **xpm, SDL_IOStream *src, bool force_32bit)
             goto done;
 
         p = line + cpp + 1;
+        if (p >= (line + SDL_strlen(line))) {
+            error = "Invalid color specification";
+            goto done;
+        }
 
         /* parse a colour definition */
         for (;;) {

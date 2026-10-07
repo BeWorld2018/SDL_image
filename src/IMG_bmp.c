@@ -534,6 +534,7 @@ static bool AddIconEntry(IconEntries *entries, Sint64 offset, int width, int hei
     entry->ncolors = ncolors;
     entry->hot_x = hot_x;
     entry->hot_y = hot_y;
+    entry->surface = NULL;
     return true;
 }
 
@@ -769,6 +770,12 @@ SDL_Surface *IMG_LoadICO_IO(SDL_IOStream *src)
 bool IMG_SaveBMP_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
 {
     if (!IMG_VerifyCanSaveSurface(surface)) {
+#ifdef __MORPHOS__
+        // honour closeio on early failure
+        if (dst && closeio) {
+            SDL_CloseIO(dst);
+        }
+#endif
         return false;
     }
     return SDL_SaveBMP_IO(surface, dst, closeio);
@@ -903,6 +910,12 @@ done:
 bool IMG_SaveCUR_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
 {
     if (!IMG_VerifyCanSaveSurface(surface)) {
+#ifdef __MORPHOS__
+        // honour closeio on early failure
+        if (dst && closeio) {
+            SDL_CloseIO(dst);
+        }
+#endif
         return false;
     }
     return SaveICOCUR(surface, dst, closeio, ICON_TYPE_CUR);
@@ -924,6 +937,12 @@ bool IMG_SaveCUR(SDL_Surface *surface, const char *file)
 bool IMG_SaveICO_IO(SDL_Surface *surface, SDL_IOStream *dst, bool closeio)
 {
     if (!IMG_VerifyCanSaveSurface(surface)) {
+#ifdef __MORPHOS__
+        // honour closeio on early failure
+        if (dst && closeio) {
+            SDL_CloseIO(dst);
+        }
+#endif
         return false;
     }
     return SaveICOCUR(surface, dst, closeio, ICON_TYPE_ICO);

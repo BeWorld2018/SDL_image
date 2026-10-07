@@ -28,7 +28,7 @@ static CONSTRUCTOR_P(init_SDL3ImageBase, 101)
 	static const char libname[] = "sdl3_image.library";
 	struct Library *base = OpenLibrary((STRPTR)libname, VERSION);
 
-	/* Functions are added without bumping VERSION: an older 53.x would
+	/* REVISION = SDL_image minor * 100 + micro: an older 3.x would
 	   lack the vectors this program was linked against. */
 	if (base && !LIB_MINVER(base, VERSION, REVISION))
 	{

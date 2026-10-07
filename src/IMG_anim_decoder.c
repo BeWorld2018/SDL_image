@@ -97,6 +97,27 @@ static bool IMG_CreateSingleFrameAnimationDecoder(IMG_AnimationDecoder *decoder,
     return true;
 }
 
+#ifdef __MORPHOS__
+// True if src holds a VP8X WebP with the animation flag (IMG_LoadWEBP_IO decodes it via this decoder)
+static bool IMG_IsAnimatedWEBPData(SDL_IOStream *src)
+{
+    Uint8 hdr[21];
+    bool animated = false;
+    Sint64 start = SDL_TellIO(src);
+
+    if (start < 0) {
+        return false;
+    }
+    if (SDL_ReadIO(src, hdr, sizeof(hdr)) == sizeof(hdr) &&
+        SDL_memcmp(hdr, "RIFF", 4) == 0 && SDL_memcmp(hdr + 8, "WEBP", 4) == 0 &&
+        SDL_memcmp(hdr + 12, "VP8X", 4) == 0 && (hdr[20] & 0x02)) {
+        animated = true;
+    }
+    SDL_SeekIO(src, start, SDL_IO_SEEK_SET);
+    return animated;
+}
+#endif
+
 IMG_AnimationDecoder *IMG_CreateAnimationDecoder(const char *file)
 {
     if (!file || !*file) {
@@ -212,7 +233,7 @@ IMG_AnimationDecoder *IMG_CreateAnimationDecoderWithProperties(SDL_PropertiesID 
         result = IMG_CreateANIAnimationDecoder(decoder, props);
     } else if (SDL_strcasecmp(type, "apng") == 0 || SDL_strcasecmp(type, "png") == 0) {
         result = IMG_CreateAPNGAnimationDecoder(decoder, props);
-    } else if (SDL_strcasecmp(type, "avifs") == 0) {
+    } else if (SDL_strcasecmp(type, "avifs") == 0 || SDL_strcasecmp(type, "avif") == 0) {
         result = IMG_CreateAVIFAnimationDecoder(decoder, props);
     } else if (SDL_strcasecmp(type, "gif") == 0) {
         result = IMG_CreateGIFAnimationDecoder(decoder, props);
@@ -225,6 +246,13 @@ IMG_AnimationDecoder *IMG_CreateAnimationDecoderWithProperties(SDL_PropertiesID 
             goto error;
         }
 
+#ifdef __MORPHOS__
+        // GIF and animated WebP single-frame loads go back through this decoder: no fallback, it would recurse forever
+        if ((SDL_strcasecmp(type, "gif") == 0 && IMG_isGIF(decoder->src)) ||
+            (SDL_strcasecmp(type, "webp") == 0 && IMG_IsAnimatedWEBPData(decoder->src))) {
+            goto error;
+        }
+#endif
         result = IMG_CreateSingleFrameAnimationDecoder(decoder, type);
     }
 
@@ -241,6 +269,12 @@ error:
         }
     }
     if (decoder) {
+#ifdef __MORPHOS__
+        // don't leak the decoder properties on failure
+        if (decoder->props) {
+            SDL_DestroyProperties(decoder->props);
+        }
+#endif
         SDL_free(decoder);
     }
     return NULL;
